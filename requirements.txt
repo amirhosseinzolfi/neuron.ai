@@ -1,0 +1,6 @@
+rich
+langchain-openai
+langchain
+langgraph
+chainlit
+python-telegram-bot==13.15

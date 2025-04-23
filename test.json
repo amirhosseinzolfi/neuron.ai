@@ -1,0 +1,104 @@
+{
+  "tests": [
+    {
+      "test_name": "Example MBTI Personality Test",
+      "estimated_time": "15 minutes",
+      "questions": [
+        {
+          "id": 1,
+          "question": "At a party, do you tend to:",
+          "options": [
+            "Interact with many people, including strangers",
+            "Interact with a few, familiar faces"
+          ]
+        },
+        {
+          "id": 2,
+          "question": "When making decisions, do you usually rely on:",
+          "options": [
+            "Objective logic and analysis",
+            "Personal feelings and values"
+          ]
+        },
+        {
+          "id": 3,
+          "question": "Do you prefer to focus on:",
+          "options": [
+            "The reality of how things are",
+            "Possibilities for how things could be"
+          ]
+        },
+        {
+          "id": 4,
+          "question": "Which statement best describes your approach to work?",
+          "options": [
+            "I like to plan everything in advance",
+            "I prefer to be spontaneous and flexible"
+          ]
+        },
+        {
+          "id": 5,
+          "question": "How do you recharge your energy?",
+          "options": [
+            "Spending time alone",
+            "Being around others"
+          ]
+        },
+        {
+          "id": 6,
+          "question": "When learning new information, do you prefer:",
+          "options": [
+            "Practical details and facts",
+            "Abstract theories and ideas"
+          ]
+        },
+        {
+          "id": 7,
+          "question": "In a conflict, do you tend to:",
+          "options": [
+            "Address the issue directly with rational discussion",
+            "Seek to understand and accommodate emotions"
+          ]
+        },
+        {
+          "id": 8,
+          "question": "When working on a project, do you:",
+          "options": [
+            "Follow a clear plan and schedule",
+            "Go with the flow and adjust as you go"
+          ]
+        }
+      ]
+    },
+    {
+      "test_name": "Stress Assessment Test",
+      "estimated_time": "10 minutes",
+      "questions": [
+        {
+          "id": 1,
+          "question": "How often do you feel overwhelmed?",
+          "options": [
+            "Rarely or never",
+            "Often"
+          ]
+        },
+        {
+          "id": 2,
+          "question": "How do you manage unexpected challenges?",
+          "options": [
+            "Plan and adjust quickly",
+            "Feel anxious and uncertain"
+          ]
+        },
+        {
+          "id": 3,
+          "question": "When faced with pressure, do you:",
+          "options": [
+            "Remain calm and think clearly",
+            "Get stressed and struggle to cope"
+          ]
+        }
+      ]
+    }
+  ]
+}

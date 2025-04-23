@@ -1,0 +1,94 @@
+nohup: ignoring input
+[32mINFO[0m:     Started server process [[36m44730[0m]
+[32mINFO[0m:     Waiting for application startup.
+[32mINFO[0m:     Application startup complete.
+[32mINFO[0m:     Uvicorn running on [1mhttp://0.0.0.0:15203[0m (Press CTRL+C to quit)
+Starting server... [g4f v-0.5.0.1]
+[32mINFO[0m:     127.0.0.1:53088 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:53088 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:34196 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:57486 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:51186 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55282 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:47392 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:47392 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:39090 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:39090 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae7190a0>
+Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x72e4ae6e12b0>, 92115.728919702)])']
+connector: <aiohttp.connector.TCPConnector object at 0x72e4ae6ddb20>
+[32mINFO[0m:     127.0.0.1:39090 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55796 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55796 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55796 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:55796 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae77d790>
+Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x72e4ae6e1490>, 92256.753906544)])']
+connector: <aiohttp.connector.TCPConnector object at 0x72e4ae6dd160>
+[32mINFO[0m:     127.0.0.1:55796 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:54604 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:54604 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:54604 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:40808 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:40808 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:53840 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35260 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35260 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae7b61e0>
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae718a40>
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae7b7bf0>
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae731f40>
+[32mINFO[0m:     127.0.0.1:35260 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35260 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae6f5850>
+Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x72e4ae7eb3b0>, 92385.68640605)])']
+connector: <aiohttp.connector.TCPConnector object at 0x72e4ae6f57f0>
+[32mINFO[0m:     127.0.0.1:48492 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:60616 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:34478 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:34478 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:34478 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:49600 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:39124 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae71a6c0>
+Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x72e4ae6e1cd0>, 92895.587507042)])']
+connector: <aiohttp.connector.TCPConnector object at 0x72e4ae718320>
+[32mINFO[0m:     127.0.0.1:39124 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35958 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35958 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35958 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35958 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:35958 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae7191c0>
+[32mINFO[0m:     127.0.0.1:40436 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:40436 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:56828 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:56828 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x72e4ae679d60>
+Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x72e4ae6e3b90>, 93208.927306703)])']
+connector: <aiohttp.connector.TCPConnector object at 0x72e4ae67bef0>
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
+[32mINFO[0m:     127.0.0.1:42064 - "[1mPOST /v1/chat/completions HTTP/1.1[0m" [32m200 OK[0m
