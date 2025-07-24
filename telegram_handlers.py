@@ -469,7 +469,7 @@ def start_package_callback(update: Update, context: CallbackContext):
     
     if not package:
         logger.error(f"[ERROR] Package not found for ID: '{package_id}'")
-        query.answer("پکیج مورد نظر یافت نشد.", show_alert=True)
+        query.answer("❌ پکیج مورد نظر یافت نشد.", show_alert=True)
         return
     
     # Check balance
@@ -480,40 +480,34 @@ def start_package_callback(update: Update, context: CallbackContext):
         # Show alert on insufficient funds
         return query.answer(
             text=(
-            "⚠️ موجودی کیف پول شما کافی نیست!\\n\\n"
-            f"موجودی فعلی: {balance} هزار تومان\\n"
-            f"هزینه پکیج: {price} هزار تومان\\n\\n"
+            f"⚠️ موجودی کیف پول شما کافی نیست!\n\n"
+            f"موجودی فعلی: {balance} هزار تومان\n"
+            f"هزینه پکیج: {price} هزار تومان\n\n"
             "لطفاً ابتدا کیف پول خود را شارژ کنید."
             ),
             show_alert=True
         )
     
-    # Acknowledge callback for successful flow
-    query.answer()
-    
-    # Deduct price and confirm
-    db.update_balance(cid, -price)
-    
     # Record package purchase in database
     try:
+        # Deduct price and confirm
+        db.update_balance(cid, -price)
         user_package_id = db.purchase_package(cid, package_id)
         db.add_package_tests(user_package_id, package["tests"])
         
-        # Format success message using HTML
-        success_message = "✅ پکیج با موفقیت خریداری شد!\n🚀 اکنون می‌توانید تست‌های این پکیج را انجام دهید."
-        send_formatted_text(update, success_message)
+        # Show success alert instead of message
+        query.answer("✅ پکیج با موفقیت خریداری شد!", show_alert=True)
         
         # Show package guide and test list
         show_package_guide(update, context, user_package_id, package)
         
     except Exception as e:
         logger.error(f"Error purchasing package: {e}")
-        error_message = "❌ خطا در خرید پکیج. لطفاً دوباره تلاش کنید یا با پشتیبانی تماس بگیرید."
-        send_formatted_text(update, error_message)
-        # Refund the user
+        # Show error alert and refund the user
+        query.answer("❌ خطا در خرید پکیج. لطفاً دوباره تلاش کنید.", show_alert=True)
         db.update_balance(cid, price)
 
-def show_package_guide(update: Update, context: CallbackContext, user_package_id: int, package: dict):
+def smart_package_guide(update: Update, context: CallbackContext, user_package_id: int, package: dict):
     """Show package guide and test list"""
     query = update.callback_query
     
@@ -562,7 +556,6 @@ def show_package_guide(update: Update, context: CallbackContext, user_package_id
 def package_test_selected(update: Update, context: CallbackContext):
     """Handle selection of a test within a package"""
     query = update.callback_query
-    query.answer()
     
     logger.info(f"[DEBUG] package_test_selected called with callback_data: {query.data}")
     
@@ -576,17 +569,21 @@ def package_test_selected(update: Update, context: CallbackContext):
     
     # Get test details - test_id is 1-based, array is 0-based
     if test_id < 1 or test_id > len(pt.all_tests["tests"]):
-        query.message.reply_text("❌ تست مورد نظر یافت نشد.")
+        query.answer("❌ تست مورد نظر یافت نشد.", show_alert=True)
         return
     test_data = pt.all_tests["tests"][test_id - 1]  # Adjust for 0-based index
     
     # Check if test is already completed
     package_test = db.get_package_test_by_test_id(user_package_id, test_id)
     if package_test["completed"] == 1:
-        query.message.reply_text(
-            ui.PACKAGE_TEST_ALREADY_COMPLETED.format(test_name=test_data['test_name'])
+        query.answer(
+            f"✅ شما قبلاً تست «{test_data['test_name']}» را انجام داده‌اید.\nمی‌توانید تست دیگری را انتخاب کنید.",
+            show_alert=True
         )
         return
+    
+    # Acknowledge callback
+    query.answer()
     
     # Format test details for HTML
     test_name = test_data["test_name"]
@@ -644,7 +641,7 @@ def start_package_test_callback(update: Update, context: CallbackContext):
         logger.info(f"[DEBUG] Extracted user_package_id: {user_package_id}, test_id: {test_id}")
     else:
         logger.error(f"[ERROR] Invalid callback data format: {query.data}")
-        query.answer("خطا در پردازش درخواست", show_alert=True)
+        query.answer("❌ خطا در پردازش درخواست", show_alert=True)
         return
     
     # Acknowledge callback
@@ -679,7 +676,7 @@ def view_package_callback(update: Update, context: CallbackContext):
         return
     
     # Show package guide and test list
-    show_package_guide(update, context, user_package_id, package)
+    smart_package_guide(update, context, user_package_id, package)
 
 def handle_package_test_completion(update: Update, context: CallbackContext,
                                    chat_id: int, user_package_id: int, test_id: int):
@@ -1118,30 +1115,36 @@ def handle_payment_screenshot(update: Update, context: CallbackContext):
     info = chat_states.get(cid)
     # Only process if awaiting payment screenshot
     if info and info.get("stage") == "await_payment_screenshot":
-        # get highest-res photo
-        photo = update.message.photo[-1]
-        file = context.bot.getFile(photo.file_id)
-        # ensure payments directory exists
-        os.makedirs("payments", exist_ok=True)
-        # construct filepath
-        filepath = os.path.join("payments", f"{cid}_{int(time.time())}.jpg")
-        file.download(filepath)
-        # record screenshot in DB
-        db.save_payment_screenshot(cid, filepath)
-        # forward screenshot to admin(s)
-        user = update.message.from_user
-        uname = f"@{user.username}" if user.username else str(cid)
-        for admin_id in ADMINS:
-            with open(filepath, "rb") as img_f:
-                context.bot.send_photo(
-                    chat_id=admin_id,
-                    photo=img_f,
-                    caption=f"📸 Payment screenshot from {uname}"
-                )
-        # acknowledge receipt and inform about charging delay with HTML formatting
-        send_formatted_text(update, ui.PAYMENT_RECEIVED)
-        # clear state
-        del chat_states[cid]
+        try:
+            # get highest-res photo
+            photo = update.message.photo[-1]
+            file = context.bot.getFile(photo.file_id)
+            # ensure payments directory exists
+            os.makedirs("payments", exist_ok=True)
+            # construct filepath
+            filepath = os.path.join("payments", f"{cid}_{int(time.time())}.jpg")
+            file.download(filepath)
+            # record screenshot in DB
+            db.save_payment_screenshot(cid, filepath)
+            # forward screenshot to admin(s)
+            user = update.message.from_user
+            uname = f"@{user.username}" if user.username else str(cid)
+            for admin_id in ADMINS:
+                with open(filepath, "rb") as img_f:
+                    context.bot.send_photo(
+                        chat_id=admin_id,
+                        photo=img_f,
+                        caption=f"📸 Payment screenshot from {uname}"
+                    )
+            
+            # Show success message as regular message (this one should stay as message)
+            send_formatted_text(update, ui.PAYMENT_RECEIVED)
+            # clear state
+            del chat_states[cid]
+            
+        except Exception as e:
+            logger.error(f"Error processing payment screenshot: {e}")
+            update.message.reply_text("❌ خطا در پردازش عکس پرداخت. لطفاً دوباره تلاش کنید.")
     else:
         # fallback to normal answer handler
         return handle_answer(update, context)
@@ -1241,20 +1244,26 @@ def start_test_callback(update: Update, context: CallbackContext):
             text=ui.INSUFFICIENT_BALANCE.format(balance=balance, price=price),
             show_alert=True
         )
-    # acknowledge callback for successful flow
-    query.answer()
-    # deduct price and confirm
-    db.update_balance(cid, -price)
-    new_bal = db.get_balance(cid)
     
-    # Format and send purchase confirmation
-    send_formatted_text(update, ui.TEST_PURCHASED)
-    
-    # proceed to ask name
-    chat_states[cid].update({"stage": "ask_name", "test_choice": choice})
-    
-    # Format and send name prompt
-    send_formatted_text(update, ui.ASK_NAME)
+    # Record test purchase in database
+    try:
+        # deduct price and confirm
+        db.update_balance(cid, -price)
+        new_bal = db.get_balance(cid)
+        
+        # Show success alert instead of message
+        query.answer("✅ تست با موفقیت خریداری شد!", show_alert=True)
+        
+        # proceed to ask name
+        chat_states[cid].update({"stage": "ask_name", "test_choice": choice})
+        
+        # Format and send name prompt
+        send_formatted_text(update, ui.ASK_NAME)
+        
+    except Exception as e:
+        logger.error(f"Error purchasing test: {e}")
+        # Show error alert and refund the user
+        query.answer("❌ خطا در خرید تست. لطفاً دوباره تلاش کنید.", show_alert=True)
 
 def view_result_callback(update: Update, context: CallbackContext):
     """Handle view result button click"""
@@ -1448,11 +1457,28 @@ def handle_answer(update: Update, context: CallbackContext):
         
         waiting_messages = ui.PROCESSING_MESSAGES
 
-        sent_messages = []  # Keep track of sent messages if you want to delete them later
-        for msg_text in waiting_messages:
-            sent_msg = update.message.reply_text(msg_text)
-            sent_messages.append(sent_msg)  # Optional: store for later deletion
-            time.sleep(2)  # Wait for 2 seconds
+        # Show and hide messages sequentially instead of keeping all visible
+        current_message = None
+        for i, msg_text in enumerate(waiting_messages):
+            # Delete previous message if it exists
+            if current_message:
+                try:
+                    current_message.delete()
+                except Exception as e:
+                    logger.error(f"Error deleting previous waiting message: {e}")
+            
+            # Send new message
+            current_message = update.message.reply_text(msg_text)
+            
+            # Wait after showing each message (including the last one)
+            time.sleep(7)  # Wait for 5 seconds after each message
+        
+        # Delete the final waiting message before showing results
+        if current_message:
+            try:
+                current_message.delete()
+            except Exception as e:
+                logger.error(f"Error deleting final waiting message: {e}")
 
         # Generate summary
         console.log("[magenta]Generating final summary...[/magenta]")
@@ -1649,14 +1675,12 @@ def handle_admin_charge_input(update: Update, context: CallbackContext, amount_t
             )
         )
         
-        # Notify the user
+        # Notify the user with alert popup instead of message
         try:
+            # Send a simple notification message first
             context.bot.send_message(
                 chat_id=target_user_id,
-                text=ui.USER_ADMIN_CHARGED.format(
-                    amount=amount,
-                    balance=new_balance
-                )
+                text=f"🎉 کیف پول شما به مبلغ {amount} هزار تومان شارژ شد.\nموجودی جدید: {new_balance} هزار تومان"
             )
         except Exception as e:
             console.log(f"Failed to notify user {target_user_id} about charge: {e}")
@@ -1715,14 +1739,11 @@ def handle_admin_reduce_input(update: Update, context: CallbackContext, amount_t
             )
         )
         
-        # Notify the user
+        # Notify the user with simple message instead of alert
         try:
             context.bot.send_message(
                 chat_id=target_user_id,
-                text=ui.USER_ADMIN_REDUCED.format(
-                    amount=amount,
-                    balance=new_balance
-                )
+                text=f"ℹ️ مبلغ {amount} هزار تومان از کیف پول شما کسر شد.\nموجودی جدید: {new_balance} هزار تومان"
             )
         except Exception as e:
             console.log(f"Failed to notify user {target_user_id} about balance reduction: {e}")
