@@ -259,6 +259,43 @@ def format_md_for_telegram(md_text: str) -> list:
     
     return chunks if chunks else ["(محتوایی برای نمایش وجود ندارد)"]
 
+def format_caption_for_telegram(test_name: str, summary_content: str) -> str:
+    """
+    Format test result as a caption for an image with Telegram's caption length limits.
+    Captions are limited to 1024 characters.
+    """
+    MAX_CAPTION_LENGTH = 1000  # Leave some buffer for safety
+    
+    # Create a nice header
+    header = f"<b>🎯 نتایج تست {test_name}</b>\n\n"
+    
+    # Format the summary content using our standard function but take only first chunk
+    message_chunks = format_md_for_telegram(summary_content)
+    main_content = message_chunks[0] if message_chunks else summary_content
+    
+    # Calculate available space for content
+    available_space = MAX_CAPTION_LENGTH - len(header) - 50  # Buffer for footer
+    
+    # Truncate content if too long
+    if len(main_content) > available_space:
+        main_content = main_content[:available_space - 3] + "..."
+    
+    # Add footer if content was truncated
+    footer = ""
+    if len(message_chunks) > 1 or len(summary_content) > available_space:
+        footer = "\n\n📄 نتایج کامل در فایل PDF ارسال شده موجود است."
+    
+    full_caption = header + main_content + footer
+    
+    # Final safety check
+    if len(full_caption) > MAX_CAPTION_LENGTH:
+        # More aggressive truncation
+        content_limit = MAX_CAPTION_LENGTH - len(header) - len(footer) - 10
+        truncated_content = main_content[:content_limit] + "..."
+        full_caption = header + truncated_content + footer
+    
+    return full_caption
+
 def send_styled_test_result(update: Update, context: CallbackContext, test_name: str, summary_content: str):
     """Send formatted test result to user with proper styling using HTML."""
     try:

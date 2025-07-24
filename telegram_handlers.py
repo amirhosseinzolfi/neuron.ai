@@ -1,4 +1,7 @@
-
+"""
+Telegram bot handlers for Blue Psychology Test Bot.
+This module contains all the handler functions for the Telegram bot.
+"""
 import re
 import time
 import os
