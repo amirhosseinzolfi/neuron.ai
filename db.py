@@ -266,6 +266,41 @@ def get_user_package(user_package_id: int):
     conn.close()
     return package
 
+def get_user(chat_id: int):
+    """Return user data for a given chat_id."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT chat_id, balance, username, first_name, last_name FROM users WHERE chat_id = ?', (chat_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        'chat_id': row['chat_id'],
+        'balance': row['balance'],
+        'username': row['username'],
+        'first_name': row['first_name'],
+        'last_name': row['last_name']
+    }
+
+def get_test_result_by_test_id(chat_id: int, test_id: int):
+    """Return the latest test result for a given user and test id."""
+    conn = get_conn()
+    cur = conn.cursor()
+    import psychology_test as pt
+    test_name = pt.all_tests["tests"][test_id - 1]["test_name"]
+    cur.execute('SELECT id, test_name, result_text, pdf_path FROM test_results WHERE chat_id = ? AND test_name = ? ORDER BY timestamp DESC LIMIT 1', (chat_id, test_name))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return None
+    return {
+        'id': row['id'],
+        'test_name': row['test_name'],
+        'result_text': row['result_text'],
+        'pdf_path': row['pdf_path']
+    }
+
 def get_all_users():
     """Return list of all users ever seen, including metadata and balance."""
     conn = get_conn()

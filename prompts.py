@@ -217,3 +217,55 @@ Personality Summary:
 Optimized Image Prompt:
 """
 
+
+PACKAGE_ANALYSIS_PROMPT = """
+You are a master psychologist and career advisor, tasked with creating a comprehensive, integrated analysis for a user who has completed a "smart package" of psychology tests.
+
+**User Profile:**
+- **Name:** {user_name}
+- **Age:** {user_age}
+
+**Package Name:** {package_name}
+
+**User's Test Results:**
+{formatted_results}
+
+**Your Task:**
+Synthesize all the provided test results into a single, cohesive, and insightful report. Do not simply list the results. Instead, weave them together to tell a story about the user.
+
+**Report Structure (in Persian):**
+
+1.  **مقدمه (Introduction):**
+    *   Start with a warm and personalized introduction, addressing the user by name.
+    *   Briefly explain the purpose of the "{package_name}" package and the value of integrating the results from the different tests they've completed.
+
+2.  **تحلیل یکپارچه شخصیت و رفتار (Integrated Personality and Behavioral Analysis):**
+    *   Connect the dots between the different test results (e.g., how their MBTI type influences their DISC style, or how their stress levels might affect their personality expression).
+    *   Identify key themes, strengths, and potential areas for growth that emerge from the combined results.
+    *   Use clear, encouraging, and non-judgmental language.
+
+3.  **نقاط قوت کلیدی (Key Strengths):**
+    *   Summarize the user's most significant strengths based on the synthesis of all tests.
+    *   Provide specific examples of how these strengths can be applied in their personal or professional life.
+
+4.  **زمینه‌های قابل بهبود (Areas for Development):**
+    *   Gently and constructively point out potential challenges or areas for development.
+    *   Frame these as opportunities for growth, not as weaknesses.
+    *   Offer actionable advice or suggestions for improvement.
+
+5.  **توصیه‌های شخصی‌سازی شده (Personalized Recommendations):**
+    *   Based on the specific package focus ({package_name}), provide tailored recommendations.
+    *   For a "Business & Career" package, this might include ideal job roles, and career paths.
+    *   For a "Self-Awareness" package, it might focus on personal growth strategies, and relationship advice.
+    *   For a "Talents & Future" package, it might focus on educational paths, and long-term goal setting.
+
+6.  **جمع‌بندی (Conclusion):**
+    *   End with an encouraging and empowering summary.
+    *   Reiterate the value of their journey of self-discovery and wish them well.
+
+**Formatting:**
+*   Use Markdown for formatting (bolding, bullet points, etc.).
+*   The entire report must be in Persian.
+*   Ensure the tone is professional, empathetic, and highly supportive.
+"""
+

@@ -19,6 +19,7 @@ from rich.table import Table
 import psychology_test as pt
 import db
 import packages
+import package_ai
 from pdf_utils import generate_pdf
 import telegram_ui as ui
 
@@ -30,35 +31,63 @@ logger = logging.getLogger(__name__)
 from utils import chat_states, admin_only, escape_markdown_v2, ADMINS
 
 # Helper function to format and send text using HTML formatting
-def send_formatted_text(update, text, reply_markup=None):
-    """Format markdown text to HTML and send it properly chunked"""
-    # Import format_md_for_telegram function
-    def _import_format_md_for_telegram():
-        from telegrambot import format_md_for_telegram
-        return format_md_for_telegram
-        
-    format_md_for_telegram = _import_format_md_for_telegram()
+def send_formatted_text(update: Update, text: str, reply_markup=None):
+    """Formats markdown text to HTML and sends it, handling message editing."""
+    # Dynamically import the formatter to avoid circular dependencies
+    from telegrambot import format_md_for_telegram
+    
     message_chunks = format_md_for_telegram(text)
     
-    # Determine the reply method based on update type
-    if update.callback_query:
+    # Determine the reply/edit method based on the update context
+    is_callback = update.callback_query is not None
+    if is_callback:
+        # For callbacks, we typically want to edit the existing message
+        # to provide a smoother user experience.
+        # We'll edit with the first chunk and send subsequent chunks as new messages.
         reply_method = update.callback_query.message.reply_text
+        edit_method = update.callback_query.edit_message_text
     else:
+        # For regular messages, we just reply.
         reply_method = update.message.reply_text
-    
-    # Send each chunk with HTML parsing
+        edit_method = None # No editing capability for new messages
+
     sent_messages = []
     for i, chunk in enumerate(message_chunks):
-        sent_message = reply_method(
-            chunk,
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup if i == len(message_chunks) - 1 else None
-        )
-        sent_messages.append(sent_message)
-        # Small delay between chunks to maintain order
-        if i < len(message_chunks) - 1:
-            time.sleep(0.5)
-    
+        # Use the provided reply_markup only for the very last chunk
+        current_markup = reply_markup if i == len(message_chunks) - 1 else None
+        
+        try:
+            if i == 0 and is_callback and edit_method:
+                # Try to edit the message with the first chunk
+                sent_message = edit_method(
+                    text=chunk,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=current_markup
+                )
+            else:
+                # Send a new message for subsequent chunks or if it's not a callback
+                sent_message = reply_method(
+                    text=chunk,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=current_markup
+                )
+            sent_messages.append(sent_message)
+        except Exception as e:
+            logger.error(f"Error sending/editing formatted text chunk: {e}")
+            # Fallback to sending a new message if editing fails
+            if is_callback:
+                sent_message = update.callback_query.message.reply_text(
+                    text=chunk,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=current_markup
+                )
+                sent_messages.append(sent_message)
+
+        # Add a small delay between sending multiple message chunks to avoid rate limiting
+        # and ensure messages arrive in the correct order.
+        if len(message_chunks) > 1 and i < len(message_chunks) - 1:
+            time.sleep(0.6)
+            
     return sent_messages
 
 # =============================================================================
@@ -336,10 +365,11 @@ def smart_packages(update: Update, context: CallbackContext):
     intro_text = intro_chunks[0] if intro_chunks else ui.SMART_PACKAGES_INTRO
     
     keyboard = [
-        [InlineKeyboardButton("1️⃣ پکیج خودآگاهی", callback_data="smart_pack_selfaware")],
-        [InlineKeyboardButton("2️⃣ پکیج کسب‌وکار و شغلی", callback_data="smart_pack_business")],
-        [InlineKeyboardButton("3️⃣ پکیج استعدادها و آینده", callback_data="smart_pack_talents")],
-        [InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")]
+        [InlineKeyboardButton("🍃 پکیج خودآگاهی", callback_data="smart_pack_selfaware")],
+        [InlineKeyboardButton("💼پکیج کسب‌وکار و شغلی", callback_data="smart_pack_business")],
+        [InlineKeyboardButton("💫پکیج استعدادها و آینده", callback_data="smart_pack_talents")],
+        [InlineKeyboardButton("🧪 پکیج تست", callback_data="smart_pack_test")],
+        [InlineKeyboardButton("🏠 بازگشت خانه", callback_data="back_to_home")]
     ]
     
     # If update is from callback query, try to edit the message
@@ -416,6 +446,16 @@ def show_package_card(update: Update, context: CallbackContext):
     price = package.get("price", 0)
     num_tests = len(package["tests"])
     
+    # Get test names for this package
+    test_list = ""
+    for i, test_id in enumerate(package["tests"], 1):
+        if test_id >= 1 and test_id <= len(pt.all_tests["tests"]):
+            test_data = pt.all_tests["tests"][test_id - 1]
+            test_name = test_data["test_name"]
+            test_list += f"{i}. {test_name}\n"
+        else:
+            test_list += f"{i}. تست شماره {test_id}\n"
+    
     info_msg = f"""<b>🧠 {name}</b>
 
 <b>💲 قیمت:</b> {price} هزار تومان
@@ -429,7 +469,10 @@ def show_package_card(update: Update, context: CallbackContext):
 {outcome}
 
 <b>🎯 کاربرد:</b>
-{usage}"""
+{usage}
+
+<b>📋 تست‌های شامل در این پکیج:</b>
+{test_list}"""
     
     keyboard = [
         [InlineKeyboardButton("🚀 خرید و شروع پکیج", callback_data=f"start_package_{package_id}")],
@@ -498,8 +541,46 @@ def start_package_callback(update: Update, context: CallbackContext):
         # Show success alert instead of message
         query.answer("✅ پکیج با موفقیت خریداری شد!", show_alert=True)
         
-        # Show package guide and test list
-        show_package_guide(update, context, user_package_id, package)
+        # Send package guide as a new message (don't edit the package card)
+        guide_text = package["guide"]
+        send_formatted_text(update, guide_text)
+        
+        # Get tests in this package
+        package_tests = db.get_package_tests(user_package_id)
+        
+        # Create keyboard with test buttons
+        keyboard = []
+        for pt_test in package_tests:
+            test_id = pt_test["test_id"]
+            test_completed = pt_test["completed"] == 1
+            
+            # Get test details from all_tests - bounds check
+            if test_id < 1 or test_id > len(pt.all_tests["tests"]):
+                continue
+            test_data = pt.all_tests["tests"][test_id - 1]
+            test_name = test_data["test_name"]
+            
+            # Add checkmark for completed tests
+            status_icon = "✅ " if test_completed else ""
+            
+            keyboard.append([
+                InlineKeyboardButton(
+                    f"{status_icon}{test_name}", 
+                    callback_data=f"package_test_{user_package_id}_{test_id}"
+                )
+            ])
+        
+        # Add buttons for navigation
+        keyboard.append([
+            InlineKeyboardButton("🏠 بازگشت به خانه", callback_data="back_to_home")
+        ])
+        
+        # Send the test selection keyboard as a new message
+        query.message.reply_text(
+            ui.PACKAGE_TEST_SELECTION,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         
     except Exception as e:
         logger.error(f"Error purchasing package: {e}")
@@ -679,57 +760,120 @@ def view_package_callback(update: Update, context: CallbackContext):
     smart_package_guide(update, context, user_package_id, package)
 
 def handle_package_test_completion(update: Update, context: CallbackContext,
-                                   chat_id: int, user_package_id: int, test_id: int):
+                                   chat_id: int, user_package_id: int, test_id: int, info: dict):
     """Handle completion of a test within a package"""
     # Get tests in this specific package
     package_tests = db.get_package_tests(user_package_id)
-    
+
     for pt_test in package_tests:
         if pt_test["test_id"] == test_id and pt_test["completed"] == 0:
             # Mark this test as completed
             db.mark_package_test_completed(pt_test["id"])
-            
+
             # Check if all tests in the package are completed
             all_tests = db.get_package_tests(user_package_id)
             all_completed = all(test["completed"] == 1 for test in all_tests)
-            
-            # Format messages using format_md_for_telegram
-            def _import_format_md_for_telegram():
-                from telegrambot import format_md_for_telegram
-                return format_md_for_telegram
-                
-            format_md_for_telegram = _import_format_md_for_telegram()
-            
+
             if all_completed:
-                # All done → send final package summary
-                pkg_info = packages.get_package_by_id(
-                    db.get_user_package(user_package_id)["package_id"]
-                )
-                completion_msg = ui.PACKAGE_ALL_TESTS_COMPLETED.format(package_name=pkg_info['name'])
-                completion_chunks = format_md_for_telegram(completion_msg)
+                # Get package info with proper error handling
+                pkg_info_from_db = db.get_user_package(user_package_id)
+                if not pkg_info_from_db:
+                    console.log(f"[red]Could not find package info for user_package_id: {user_package_id}[/red]")
+                    return
                 
-                for chunk in completion_chunks:
+                pkg_info = packages.get_package_by_id(pkg_info_from_db["package_id"])
+                if not pkg_info:
+                    console.log(f"[red]Could not find package details for package_id: {pkg_info_from_db['package_id']}[/red]")
+                    return
+
+                # Show completion alert as popup instead of message
+                try:
+                    completion_message = f"🎉 تبریک! شما تمام تست‌های پکیج «{pkg_info['name']}» را با موفقیت به پایان رساندید."
+                    
+                    # Send alert to user using bot API
+                    from telegram import Bot
+                    bot = context.bot
+                    
+                    # Create a temporary callback query-like object to show alert
+                    # Since we don't have a callback query here, we'll send it as a special message
+                    # and then show the package report
                     context.bot.send_message(
                         chat_id=chat_id,
-                        text=chunk,
+                        text="🔔 " + completion_message,
                         parse_mode=ParseMode.HTML
                     )
+                    
+                except Exception as e:
+                    console.log(f"[red]Error sending completion message: {e}[/red]")
+                
+                # get user info
+                user = db.get_user(chat_id)
+                if not user:
+                    console.log(f"[red]Could not find user info for chat_id: {chat_id}[/red]")
+                    return
+                
+                # get all test results
+                results = []
+                for test in all_tests:
+                    result = db.get_test_result_by_test_id(chat_id, test["test_id"])
+                    if result:
+                        results.append(result)
+
+                # generate and send the report
+                if results:
+                    send_package_report(update, context, chat_id, user["first_name"], info.get("age"), pkg_info["name"], results)
             else:
-                # Partial completion → prompt next test
-                pkg_info = packages.get_package_by_id(
-                    db.get_user_package(user_package_id)["package_id"]
-                )
-                completion_msg = ui.PACKAGE_TEST_COMPLETED
-                completion_chunks = format_md_for_telegram(completion_msg)
-                
-                for chunk in completion_chunks:
+                # Show individual test completion alert instead of message
+                try:
+                    # Send a success alert as a special notification message that looks like an alert
                     context.bot.send_message(
                         chat_id=chat_id,
-                        text=chunk,
+                        text="🔔 ✅ آفرین! تست شما با موفقیت ذخیره شد. برای ادامه، تست بعدی را انتخاب کنید.",
                         parse_mode=ParseMode.HTML
                     )
-                show_package_guide_by_id(context, chat_id, user_package_id, pkg_info)
+                except Exception as e:
+                    console.log(f"[red]Error sending test completion alert: {e}[/red]")
+                
+                # Partial completion → prompt next test
+                pkg_info_from_db = db.get_user_package(user_package_id)
+                if pkg_info_from_db:
+                    pkg_info = packages.get_package_by_id(pkg_info_from_db["package_id"])
+                    if pkg_info:
+                        show_package_guide_by_id(context, chat_id, user_package_id, pkg_info)
             return
+
+def send_package_report(update: Update, context: CallbackContext, chat_id: int, user_name: str, user_age: int, package_name: str, results: list):
+    """Generate and send the package report."""
+    # Show a waiting message
+    wait_message = context.bot.send_message(
+        chat_id=chat_id,
+        text="در حال آماده‌سازی گزارش جامع شما... لطفاً چند لحظه صبر کنید.",
+    )
+
+    # Generate the report
+    try:
+        report = package_ai.summarize_package_results(
+            user_name, user_age, package_name, results
+        )
+    except Exception as e:
+        logger.error(f"Error generating package report: {e}")
+        context.bot.send_message(
+            chat_id=chat_id,
+            text="❌ متأسفانه در حال حاضر امکان ایجاد گزارش وجود ندارد. لطفاً بعداً دوباره تلاش کنید.",
+        )
+        return
+    finally:
+        # Delete the waiting message
+        try:
+            wait_message.delete()
+        except Exception as e:
+            logger.error(f"Error deleting waiting message: {e}")
+
+    # Send the report
+    send_formatted_text(
+        update,
+        report,
+    )
 
 def show_package_guide_by_id(context: CallbackContext, chat_id: int, user_package_id: int, package: dict):
     """Show package guide and test list by IDs"""
@@ -809,18 +953,12 @@ def purchased_packages_callback(update: Update, context: CallbackContext):
                     query.message.delete()
                 except Exception as e:
                     logger.error(f"Error deleting message: {e}")
-                
-                context.bot.send_message(
-                    chat_id=update.effective_chat.id,
-                    text=ui.NO_PACKAGES_PURCHASED,
-                    parse_mode=ParseMode.HTML
-                )
-            else:
-                # For text messages, we can edit directly
-                query.edit_message_text(
-                    text=ui.NO_PACKAGES_PURCHASED,
-                    parse_mode=ParseMode.HTML
-                )
+            
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=ui.NO_PACKAGES_PURCHASED,
+                parse_mode=ParseMode.HTML
+            )
         except Exception as e:
             logger.error(f"Could not edit message in purchased_packages_callback: {e}")
             query.message.reply_text(
@@ -1493,7 +1631,19 @@ def handle_answer(update: Update, context: CallbackContext):
                 expand=False
             ))
             
-            test_name = info["test_name"] # Get test_name early
+            # Get test_name from state or fallback to default
+            test_name = info.get("test_name")
+            if not test_name:
+                # Fallback: get test name from test choice
+                test_choice = info.get("test_choice")
+                if test_choice and test_choice.isdigit():
+                    test_index = int(test_choice) - 1
+                    if 0 <= test_index < len(pt.all_tests["tests"]):
+                        test_name = pt.all_tests["tests"][test_index]["test_name"]
+                    else:
+                        test_name = "تست روانشناسی"
+                else:
+                    test_name = "تست روانشناسی"
 
             # 1. Generate and send Image with result as caption
             try:
@@ -1560,21 +1710,22 @@ def handle_answer(update: Update, context: CallbackContext):
                     caption=ui.PDF_CAPTION
                 )
 
-            del chat_states[cid]
         except Exception as e:
             console.log(f"[red]Error generating or sending summary: {e}[/red]")
             update.message.reply_text(ui.ERROR_GENERATING_RESULT)
+            # Don't return here - continue with package completion check
             
-        # Add safety check before deleting chat state
+        # Add safety check before deleting chat state and handle package completion
         if cid in chat_states:
-            info = chat_states[cid]
-            # if this was a package test completion, include both IDs
-            if "user_package_id" in info:
+            info = chat_states.get(cid)
+            if info and "user_package_id" in info:
                 handle_package_test_completion(
-                    update, context,
+                    update,
+                    context,
                     cid,
                     info["user_package_id"],
-                    int(info["test_choice"])
+                    int(info["test_choice"]),
+                    info,
                 )
             del chat_states[cid]
         else:

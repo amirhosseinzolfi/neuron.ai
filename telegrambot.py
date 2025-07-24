@@ -338,6 +338,17 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
             logger.error(f"[bold red]Fallback send also failed: {fallback_e}[/bold red]")
         return False
 
+def send_alert_message(context, chat_id: int, message: str):
+    """Send a message formatted to look like an alert notification"""
+    try:
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=f"🔔 {message}",
+            parse_mode=ParseMode.HTML
+        )
+    except Exception as e:
+        logger.error(f"Error sending alert message: {e}")
+
 def main():
     # Clear module cache to avoid duplicate handlers
     import sys
@@ -407,7 +418,7 @@ def main():
     dp.add_handler(CallbackQueryHandler(handlers.start_package_callback, pattern="^start_package_[^_]*$"), group=1)
     dp.add_handler(CallbackQueryHandler(handlers.package_test_selected, pattern="^package_test_"), group=1)
     dp.add_handler(CallbackQueryHandler(handlers.view_package_callback, pattern="^view_package_"), group=1)
-    
+
     # Admin handlers
     dp.add_handler(CallbackQueryHandler(handlers.admin_users_list, pattern="^admin_users$"), group=1)
     dp.add_handler(CallbackQueryHandler(handlers.admin_user_options, pattern=r"^admin_user_\d+$"), group=1)
