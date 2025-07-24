@@ -1,401 +1,90 @@
-import json
-import time
+import json, time, logging, threading, random, os
 from typing import TypedDict, List, Dict, Any
 from rich.console import Console
 from rich.prompt import Prompt
-from rich import print_json
 from rich.panel import Panel
 from rich.logging import RichHandler
-from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from langgraph.graph import StateGraph, END
-import logging
-
-#==============================================================================#
-#                           CONFIGURATION & SETUP                              #
-#==============================================================================#
-
-# --- Initialize Logging ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
+from langgraph.graph import StateGraph
+from prompts import INTRO_TEXT
+from ai_utils import (
+    conversationalize_question,
+    semantic_validate_and_match,
+    generate_retry_message,
+    summarize_results,
+    generate_image_prompt,
 )
-log = logging.getLogger("psychology-test")
+from image_utils import generate_images_for_prompt
 
-# --- Initialize Console ---
+# Initialize Logging & Console
+logging.basicConfig(level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler(rich_tracebacks=True)])
+log = logging.getLogger("psychology-test")
 console = Console()
 
-# Import all prompt constants from prompts.py
-from prompts import (
-    CHATBOT_PERSONA,
-    INTRO_TEXT,
-    QUESTION_WITH_ACKNOWLEDGMENT_PROMPT,
-    FIRST_QUESTION_PROMPT,
-    RESPONSE_ANALYSIS_PROMPT,
-    RETRY_PROMPT_FIRST_ATTEMPT,
-    RETRY_PROMPT_MULTIPLE_ATTEMPTS,
-    FINAL_ACKNOWLEDGMENT_PROMPT,
-    ANALYSIS_SUMMARY_PROMPT,
-    CLOSING_MESSAGE_PROMPT,
-    CONVERSATION_PATTERNS_PROMPT
-)
-
-# --- Initialize LLM ---
-llm = ChatOpenAI(
-    base_url="http://localhost:15203/v1",
-    model_name="gpt-4o-mini",
-    temperature=0.7,
-    api_key="324"
-)
-
-#==============================================================================#
-#                                DATA MODELS                                   #
-#==============================================================================#
-
-# --- Load Test Data --- 
+# Load tests
 with open('test.json', 'r') as f:
-    all_tests = json.load(f)  # now contains a "tests" key
+    all_tests = json.load(f)
     log.info(f"{len(all_tests['tests'])} tests loaded.")
+test_data = {}
+test_results = {"test_name": test_data.get("test_name", ""), "answers": []}
 
-# Choose the active test (default to first if none is chosen)
-test_data = {}  # will be set in initialize()
-
-# --- Initialize Results ---
-test_results = {
-    "test_name": test_data.get('test_name', ''),
-    "answers": []
-}
-
-# --- Define State ---
 class TestState(TypedDict):
     current_question: int
     finished: bool
     user_name: str
+    user_age: int
     conversation_history: List[Dict[str, Any]]
-    last_answer: Dict[str, str]  # Track the last answer for combining responses
+    last_answer: Dict[str, str]
+    history_summary: str
+    attempt_count: int
+    answers: List[Dict[str, Any]]  # Add answers to TestState for Telegram flow
+    chat_id: int  # Add chat_id to TestState for Telegram flow
 
-#==============================================================================#
-#                            HELPER FUNCTIONS                                  #
-#==============================================================================#
-
-def get_ai_response(state, additional_prompt=None):
-    """Get AI responses using global state conversation history"""
-    log.debug(f"Sending request to AI with conversation history of {len(state['conversation_history'])} messages")
-    
-    # Create system message with persona and user context if available
-    system_content = CHATBOT_PERSONA
-    if state.get("user_name"):
-        system_content += f"\n\nYou're currently helping {state['user_name']} complete a psychology test."
-        system_content += "\n\nIMPORTANT: This is an ongoing conversation. Maintain continuity in your responses. "
-        system_content += "If this is an error message, do NOT start with a new greeting. Continue the conversation naturally."
-    
-    formatted_messages = [SystemMessage(content=system_content)]
-    
-    # Add conversation history - filtering out any context markers
-    for msg in state['conversation_history']:
-        if msg["role"] == "user":
-            formatted_messages.append(HumanMessage(content=msg["content"]))
-        elif msg["role"] == "assistant":
-            formatted_messages.append(AIMessage(content=msg["content"]))
-    
-    # Add the additional prompt if provided
-    if additional_prompt:
-        formatted_messages.append(HumanMessage(content=additional_prompt))
-    
-    # Get response from AI with timeout and error handling
+# Helper function to load existing test results
+def load_test_results():
+    """Load existing test results from test-result.json"""
     try:
-        response = llm.invoke(formatted_messages, timeout=30).content.strip()
-        log.debug(f"AI response: {response[:100]}...")
-        
-        # If additional prompt was provided, add the exchange to the conversation history
-        if additional_prompt:
-            state['conversation_history'].append({"role": "user", "content": additional_prompt})
-            state['conversation_history'].append({"role": "assistant", "content": response})
-            
-        return response
+        if os.path.exists('test-result.json'):
+            with open('test-result.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Handle old format (without 'users' key) by converting it
+                if 'users' not in data:
+                    log.info("Converting old format test results to new format with 'users' key")
+                    # Create new structure with old data under a generic user ID
+                    old_test_name = data.get('test_name', 'Unknown Test')
+                    timestamp = str(int(time.time()))
+                    
+                    # Initialize new format
+                    new_data = {"users": {}}
+                    
+                    # Only convert if it looks like actual test data (has answers)
+                    if 'answers' in data and len(data['answers']) > 0:
+                        new_data["users"]["converted_legacy_data"] = {
+                            f"{old_test_name}_{timestamp}": data
+                        }
+                        log.info(f"Converted {len(data.get('answers', []))} answers from old format")
+                    
+                    return new_data
+                return data
+        # Return empty structure with 'users' key if file doesn't exist
+        return {"users": {}}
     except Exception as e:
-        log.error(f"Error getting AI response: {str(e)}")
-        return "I apologize for the technical difficulty. Let's continue with the test."
+        log.error(f"Error loading test-result.json: {e}")
+        # Ensure we still return a valid structure
+        return {"users": {}}
 
-def conversationalize_question(state, question, question_number, total_questions):
-    """Generate a conversational question, optionally acknowledging the previous answer"""
-    
-    # If we have a previous answer, we'll acknowledge it and ask the next question
-    if state.get("last_answer"):
-        prompt = QUESTION_WITH_ACKNOWLEDGMENT_PROMPT.format(
-            user_name=state['user_name'],
-            last_response=state['last_answer']['response'],
-            last_option=state['last_answer']['selected_option'],
-            question_number=question_number,
-            total_questions=total_questions,
-            question=question
-        )
-    else:
-        # First question has no previous answer to acknowledge
-        prompt = FIRST_QUESTION_PROMPT.format(
-            question_number=question_number,
-            total_questions=total_questions,
-            question=question
-        )
-    
-    log.debug(f"Conversationalizing question: {question}")
-    
-    response = get_ai_response(state, prompt)
-    log.debug(f"Conversationalized to: {response}")
-    return response
-
-def extract_conversation_patterns(state):
-    """Extract patterns and themes from the user's conversation history"""
-    
-    # Skip if we don't have enough history yet
-    if len(state['conversation_history']) < 4:
-        return "Not enough conversation history to establish patterns."
-    
-    # Extract just the user messages to analyze their communication style
-    user_messages = [msg["content"] for msg in state['conversation_history'] 
-                    if msg["role"] == "user" and not msg.get("content", "").startswith("My name is")]
-    
-    # Extract previous answers for context
-    previous_answers = []
-    for answer in test_results.get('answers', []):
-        previous_answers.append({
-            'question': answer['question'],
-            'response': answer['original_response'],
-            'selected_option': answer['selected_option'],
-            'analysis': answer.get('response_analysis', '')
-        })
-    
-    if not user_messages and not previous_answers:
-        return "Not enough data to establish communication patterns."
-        
-    prompt = CONVERSATION_PATTERNS_PROMPT.format(
-        user_messages=json.dumps(user_messages, indent=2),
-        previous_answers=json.dumps(previous_answers, indent=2)
-    )
-
-    # Create a temporary state copy to avoid circular updates
-    temp_state = {
-        "conversation_history": state['conversation_history'][:5],  # Use limited history
-        "user_name": state.get("user_name", "the user")
-    }
-    
+# Helper function to save test results
+def save_test_results(results_data):
+    """Save test results to test-result.json"""
     try:
-        response = get_ai_response(temp_state, prompt)
-        return response
+        with open('test-result.json', 'w', encoding='utf-8') as f:
+            json.dump(results_data, f, indent=4, ensure_ascii=False)
+        log.info("Test results saved to test-result.json")
+        return True
     except Exception as e:
-        log.warning(f"Error extracting conversation patterns: {e}")
-        return "Unable to extract communication patterns from conversation history."
+        log.error(f"Error saving test-result.json: {e}")
+        return False
 
-def semantic_validate_and_match(state, question, options, user_input):
-    """Advanced semantic validation and matching of user responses with comprehensive psychological analysis"""
-    # Handle numeric responses directly
-    if user_input.strip().isdigit():
-        option_num = int(user_input.strip())
-        if 1 <= option_num <= len(options):
-            # Return validated and matched option with basic analysis
-            selected_option = options[option_num - 1]
-            analysis = f"The user selected option {option_num} directly. This shows clear decision-making and a preference for direct communication."
-            return True, selected_option, analysis
-    
-    log.debug(f"Analyzing ambiguous input: '{user_input}'")
-    
-    # Check for keywords and common phrases that might indicate an option
-    user_input_lower = user_input.lower()
-    
-    # Try to infer option by direct keywords - fast pre-check before LLM call
-    for i, option in enumerate(options, 1):
-        option_lower = option.lower()
-        # Look for exact matches or clear indicators in the input
-        if (option_lower in user_input_lower or 
-            f"option {i}" in user_input_lower or 
-            f"number {i}" in user_input_lower or
-            f"{i}." in user_input):
-            log.debug(f"Found direct keyword match for option {i}")
-            return True, option, f"User indicated option {i} through contextual clues. The choice of '{option}' suggests {get_quick_analysis(i, question)}."
-    
-    # Extract conversation patterns for contextual analysis
-    try:
-        conversation_patterns = extract_conversation_patterns(state)
-    except Exception as e:
-        log.warning(f"Failed to extract conversation patterns: {e}")
-        conversation_patterns = "No patterns extracted due to an error."
-    
-    prompt = RESPONSE_ANALYSIS_PROMPT.format(
-        question=question,
-        options=options,
-        user_input=user_input,
-        conversation_patterns=conversation_patterns
-    )
-    
-    log.debug(f"Semantically analyzing: '{user_input}' with conversation context")
-    
-    try:
-        response = get_ai_response(state, prompt)
-        
-        # Parse the response
-        lines = response.strip().split('\n')
-        valid = False
-        matched_option = None
-        analysis = None
-        patterns = None
-        
-        for line in lines:
-            if line.startswith("VALID:"):
-                valid = line.replace("VALID:", "").strip().upper() == "YES"
-            elif line.startswith("OPTION:"):
-                option_text = line.replace("OPTION:", "").strip()
-                if option_text != "NONE":
-                    matched_option = option_text
-            elif line.startswith("ANALYSIS:"):
-                analysis = line.replace("ANALYSIS:", "").strip()
-            elif line.startswith("PATTERNS:"):
-                patterns = line.replace("PATTERNS:", "").strip()
-        
-        # Combine analysis with patterns if available
-        if analysis and patterns:
-            analysis = f"{analysis} {patterns}"
-            
-        # Limit analysis length to ensure it's concise
-        if analysis:
-            words = analysis.split()
-            if len(words) > 70:  # 50 for analysis + 20 for patterns
-                analysis = " ".join(words[:70]) + "..."
-        
-        log.debug(f"Validation: {valid}, Option: {matched_option}, Analysis: {analysis[:50]}...")
-        
-        # If we couldn't determine a valid match, make a best guess based on context
-        if not valid or not matched_option:
-            log.warning(f"Failed to match input '{user_input}' to an option. Making a best guess.")
-            
-            # If this is a programming-related response, lean toward logical/analytical
-            if "programmer" in user_input_lower or "coding" in user_input_lower or "logic" in user_input_lower:
-                for option in options:
-                    if "logic" in option.lower() or "objective" in option.lower() or "analysis" in option.lower():
-                        log.info(f"Interpreting programmer reference as a preference for {option}")
-                        return True, option, f"User referenced being a programmer, suggesting a preference for logical thinking."
-            
-            # If still no match, prompt the user to be more specific
-            return False, None, "Could not clearly determine user's preference."
-        
-        return valid, matched_option, analysis
-        
-    except Exception as e:
-        log.error(f"Error during semantic validation: {str(e)}")
-        
-        # Fallback mechanism - if the function fails, ask the user to try again with a clearer response
-        return False, None, "Technical issue processing your response. Please try again with a clearer answer."
-
-# Add this helper function for quick context-based analysis
-def get_quick_analysis(option_number, question):
-    """Get a quick analysis based on option number and question content"""
-    if "party" in question.lower():
-        return "extroverted tendencies" if option_number == 1 else "introverted tendencies"
-    elif "decision" in question.lower():
-        return "analytical thinking style" if option_number == 1 else "values-based decision making"
-    elif "future" in question.lower() or "plan" in question.lower():
-        return "structured approach to planning" if option_number == 1 else "flexible approach to life"
-    else:
-        return "clear preference for this option"
-
-def generate_retry_message(state, question, options, user_input, attempt_count):
-    """Generate an increasingly helpful message for invalid answers based on attempt count"""
-    # Extract relevant previous mentions that might need to be referenced
-    context_summary = ""
-    mentions = []
-    
-    # Look at recent history for context
-    for msg in state['conversation_history'][-10:]:
-        if msg["role"] == "user" and "programmer" in msg["content"].lower():
-            mentions.append("being a programmer")
-        # Add more patterns as needed
-    
-    if mentions:
-        context_summary = "The user has previously mentioned: " + ", ".join(mentions) + "."
-    
-    if attempt_count >= 2:
-        # More direct guidance for repeat attempts
-        prompt = RETRY_PROMPT_MULTIPLE_ATTEMPTS.format(
-            user_name=state['user_name'],
-            question=question,
-            options=options,
-            user_input=user_input,
-            attempt_count=attempt_count
-        )
-    else:
-        # Standard first attempt guidance
-        prompt = RETRY_PROMPT_FIRST_ATTEMPT.format(
-            user_name=state['user_name'],
-            question=question,
-            options=options,
-            user_input=user_input,
-            context_summary=context_summary
-        )
-
-    response = get_ai_response(state, prompt)
-    return response
-
-def generate_final_acknowledgment(state, user_input, selected_option):
-    """Generate acknowledgment for the final question only"""
-    prompt = FINAL_ACKNOWLEDGMENT_PROMPT.format(
-        user_name=state['user_name'],
-        user_input=user_input,
-        selected_option=selected_option,
-        test_name=test_data.get('test_name', 'the test')
-    )
-    log.debug("Generating final answer acknowledgment")
-    
-    response = get_ai_response(state, prompt)
-    log.debug(f"Final acknowledgment: {response}")
-    return response
-
-def summarize_results(state, results):
-    """Generate comprehensive psychological analysis using all response insights and conversation patterns"""
-    # Format answers to include psychological insights for better analysis
-    formatted_answers = []
-    all_psychological_insights = []
-    
-    for answer in results['answers']:
-        formatted_answers.append({
-            "question": answer['question'],
-            "selected_option": answer['selected_option'],
-            "user_response": answer['original_response'],
-            "psychological_insight": answer.get('response_analysis', "No specific insight available")
-        })
-        
-        # Collect all psychological insights for comprehensive analysis
-        if answer.get('response_analysis'):
-            all_psychological_insights.append(answer['response_analysis'])
-    
-    # Get overall conversation patterns for meta-analysis
-    conversation_patterns = extract_conversation_patterns(state)
-    
-    # Add collected insights to conversation patterns for better context
-    if all_psychological_insights:
-        conversation_patterns += "\n\nPSYCHOLOGICAL INSIGHTS SUMMARY:\n" + "\n".join([
-            f"- {insight}" for insight in all_psychological_insights
-        ])
-    
-    user_answers_json = json.dumps(formatted_answers, indent=2)
-    
-    prompt = ANALYSIS_SUMMARY_PROMPT.format(
-        test_name=results['test_name'],
-        user_name=state['user_name'],
-        formatted_answers=user_answers_json,
-        conversation_patterns=conversation_patterns
-    )
-    
-    log.info("Generating in-depth personality analysis...")
-    
-    response = get_ai_response(state, prompt)
-    log.debug(f"Generated analysis: {response[:100]}...")
-    return response
-
-#==============================================================================#
-#                           GRAPH NODE FUNCTIONS                               #
-#==============================================================================#
-
+# GRAPH NODE FUNCTIONS
 def initialize(state: TestState):
     console.clear()
     console.rule("[bold bright_cyan]✨ Interactive Psychological Assessment ✨[/bold bright_cyan]")
@@ -422,12 +111,31 @@ def initialize(state: TestState):
     # Display introduction text from prompts and customized test details if needed
     console.print(Panel(INTRO_TEXT, border_style="bright_blue"))
     
-    user_name = Prompt.ask("[bold magenta]Your Name[/bold magenta]")
+    # Show selected-test details
+    console.print(
+        Panel(
+            f"📝 [bold]{test_data['test_name']}[/bold]\n"
+            f"- سوالات: {len(test_data['questions'])}\n"
+            f"- زمان تقریبی: {test_data['estimated_time']}\n"
+            f"- نتیجه: {test_data['outcome']}\n"
+            f"- کاربرد: {test_data['usage']}",
+            title="جزئیات تست",
+            border_style="green"
+        )
+    )
     
+    user_name = Prompt.ask("[bold magenta]Your Name[/bold magenta]")
+    while True:
+        age_str = Prompt.ask("[bold magenta]Your Age[/bold magenta]")
+        if age_str.isdigit() and 0 < int(age_str) < 150:
+            user_age = int(age_str)
+            break
+        console.print("[red]سن نامعتبر است. لطفاً عدد صحیح وارد کنید.[/red]")
+
     # Initialize conversation history with test introduction and user's name
     conversation_history = [
         {"role": "assistant", "content": INTRO_TEXT},
-        {"role": "user", "content": f"My name is {user_name}"}
+        {"role": "user", "content": f"My name is {user_name} and I am {user_age}"}
     ]
     
     log.info(f"Starting test with user: {user_name}")
@@ -437,13 +145,18 @@ def initialize(state: TestState):
         "current_question": 0, 
         "finished": False, 
         "user_name": user_name,
+        "user_age": user_age,
         "conversation_history": conversation_history,
-        "last_answer": None
+        "last_answer": None,
+        "history_summary": "",
+        "attempt_count": 0,
+        "answers": [],
+        "chat_id": None
     }
 
 def ask_question(state: TestState):
     idx = state["current_question"]
-    
+
     # Check if we've reached the end of questions
     if idx >= len(test_data['questions']):
         log.info("All questions answered, marking as finished")
@@ -477,8 +190,11 @@ def ask_question(state: TestState):
     
     # Display options
     console.print("[green]Options:[/green]")
-    for i, opt in enumerate(question_data['options'], 1):
-        console.print(f"{i}. {opt}")
+    for i, opt_data in enumerate(question_data['options'], 1):
+        if isinstance(opt_data, dict) and 'text' in opt_data:
+            console.print(f"{i}. {opt_data['text']}")
+        else:
+            console.print(f"{i}. {opt_data}")
     
     attempt_count = 0
     while True:
@@ -528,15 +244,8 @@ def ask_question(state: TestState):
                     "content": f"Psychological insight for question {idx+1}: {response_analysis}"
                 })
             
-            # For the final question only, show a separate acknowledgment
+            # For the final question only, mark test as finished
             if idx + 1 >= len(test_data["questions"]):
-                acknowledgment = generate_final_acknowledgment(state, user_input, selected_option)
-                console.print(f"[bright_green]{acknowledgment}[/bright_green]")
-                state['conversation_history'].append({
-                    "role": "assistant", 
-                    "content": acknowledgment,
-                    "context": "final_acknowledgment"
-                })
                 # Mark test as finished when last question is answered
                 state["finished"] = True
             
@@ -570,10 +279,7 @@ def ask_question(state: TestState):
     return state
 
 def decide_next(state: TestState):
-    if state["finished"]:
-        return {"next_node": "summarize"}
-    else:
-        return {"next_node": "ask_question"}
+    return {"next_node": "summarize" if state["finished"] else "ask_question"}
 
 def summarize(state: TestState):
     console.rule("[bold blue]📝 Analyzing Your Personality Profile...[/bold blue]")
@@ -593,9 +299,21 @@ def summarize(state: TestState):
     test_results["user_name"] = state["user_name"]
     test_results["analysis_timestamp"] = time.time()
 
-    with open('test-result.json', 'w') as f:
-        json.dump(test_results, f, indent=4)
-    log.info(f"Test results saved to test-result.json")
+    # Save to the new structured format
+    all_results = load_test_results()
+    # Use "cli_user" as the ID for command-line users
+    user_id_str = "cli_user"
+    
+    if user_id_str not in all_results["users"]:
+        all_results["users"][user_id_str] = {}
+    
+    test_name = test_data.get("test_name", "Unknown Test")
+    timestamp_str = str(int(time.time()))
+    
+    all_results["users"][user_id_str][f"{test_name}_{timestamp_str}"] = test_results
+    save_test_results(all_results)
+    
+    log.info(f"Test results saved to test-result.json for user {user_id_str}")
 
     console.print("\n[bold green]🎉 Your Personality Analysis:[/bold green]")
     console.print(Panel(analysis, 
@@ -603,11 +321,10 @@ def summarize(state: TestState):
                        title=f"Personality Insights for {state['user_name']}", 
                        title_align="center"))
     
-    closing_prompt = CLOSING_MESSAGE_PROMPT.format(
-        user_name=state['user_name'],
-        test_name=test_data['test_name']
+    closing_message = (
+        f"🎉 آزمون «{test_data['test_name']}» برای {state['user_name']} به پایان رسید! "
+        "امیدوارم این بینش‌ها برای شما مفید بوده باشد."
     )
-    closing_message = get_ai_response(state, closing_prompt)
     
     console.rule("[bold bright_magenta]✨ Test Completed ✨[/bold bright_magenta]")
     console.print(Panel(closing_message, border_style="bright_cyan"))
@@ -619,26 +336,197 @@ def summarize(state: TestState):
         json.dump(state['conversation_history'], f, indent=2)
     log.info(f"Conversation history saved to conversation-history.json")
     
-    # Instead of returning END, return an empty dict
+    try:
+        img_prompt = generate_image_prompt(analysis)
+        images = generate_images_for_prompt(img_prompt, state["user_name"], "/tmp", model="dall-e-3", num_images=1, width=512, height=512)
+        log.info(f"Generated images: {images}")
+    except Exception as e:
+        log.error(f"Error generating images: {e}")
+    
     return {}
 
-#==============================================================================#
-#                                GRAPH SETUP                                   #
-#==============================================================================#
+# --- TELEGRAM INTERFACE HELPER FUNCTIONS (re-added) ---
 
-# --- Graph Setup ---
+def tele_initialize(user_name: str, age: int, test_type: str = "MBTI", chat_id: int = None):
+    global test_data
+    # allow numeric selection
+    if test_type.isdigit():
+        idx = int(test_type) - 1 # User sees 1-based, code uses 0-based
+        all_tests_list = all_tests["tests"]
+        if 0 <= idx < len(all_tests_list):
+            test_data = all_tests_list[idx]
+        else: # Fallback to first test if index is out of bounds
+            log.warning(f"Invalid test index {idx+1} selected. Defaulting to first test.")
+            test_data = all_tests_list[0]
+    else:
+        # named-type logic (less used now, but kept for compatibility)
+        selected_test_obj = next((t for t in all_tests["tests"] if t["test_name"].upper() == test_type.upper()), None)
+        if selected_test_obj:
+            test_data = selected_test_obj
+        else: # Fallback to first test if name not found
+            log.warning(f"Test name '{test_type}' not found. Defaulting to first test.")
+            test_data = all_tests["tests"][0]
+    
+    log.info(f"Telegram: Test selected - {test_data['test_name']}")
+
+    conversation_history = [
+        {"role": "assistant", "content": INTRO_TEXT},
+        {"role": "user",      "content": f"My name is {user_name} and I am {age}"}
+    ]
+    return {
+        "current_question":  0,
+        "finished":          False,
+        "user_name":         user_name,
+        "user_age":          age,
+        "conversation_history": conversation_history,
+        "last_answer":       None,
+        "history_summary":   "",
+        "attempt_count":     0,
+        "answers":           [],  # Initialize empty answers list
+        "chat_id":           chat_id  # Store Telegram chat ID
+    }
+
+def tele_get_question(state):
+    if state["finished"]:
+        return None
+    idx = state["current_question"]
+    total = len(test_data["questions"])
+    qd = test_data["questions"][idx]
+    
+    # Pass the original question text, conversationalize_question will add options
+    text = conversationalize_question(state, qd["question"], idx + 1, total)
+    
+    state["conversation_history"].append({
+        "role": "assistant", "content": text, "context": f"question_{idx+1}"
+    })
+    return f"✅سوال {idx+1}/{total}\n{text}"
+
+def tele_process_answer(state, user_input):
+    idx = state.get("current_question", 0)
+    if state.get("finished") or idx >= len(test_data.get("questions", [])):
+        return {"ack": None, "next": None} # Should not happen if finished is managed correctly
+
+    qd = test_data["questions"][idx]
+    question_text = qd["question"] # Get question text for storing
+
+    valid, selected, analysis = semantic_validate_and_match(
+        state, qd["question"], qd["options"], user_input # qd["options"] is passed directly
+    )
+    if valid and selected:
+        state["attempt_count"] = 0 # Reset on valid answer
+        state["conversation_history"].append({
+            "role": "system",
+            "content": f"Psychological insight: {analysis}"
+        })
+        state["last_answer"] = { # Store last valid answer for acknowledgment in next question
+            "response": user_input,
+            "selected_option": selected,
+            "question": question_text
+        }
+        
+        # Append answer details to state["answers"]
+        if "answers" not in state:
+            state["answers"] = []
+        state["answers"].append({
+            "question_id": qd.get('id', f"q_{idx+1}"), # Use question id or generate one
+            "question": question_text,
+            "selected_option": selected,
+            "original_response": user_input,
+            "response_analysis": analysis,
+            "question_number": idx + 1,
+            "timestamp": time.time()
+        })
+            
+        state["current_question"] += 1
+        
+        # Check if this was the last question
+        if state["current_question"] >= len(test_data["questions"]):
+            state["finished"] = True
+            return {"ack": None, "next": None}
+        else:
+            next_q_text = tele_get_question(state)
+            return {"ack": None, "next": next_q_text} # Return None for ack, only next question.
+    else:
+        state["attempt_count"] = state.get("attempt_count", 0) + 1
+        err = generate_retry_message(
+            state, qd["question"], qd["options"], user_input, # qd["options"] is passed directly
+            state["attempt_count"]
+        )
+        # Add error/retry message to history as assistant message
+        state["conversation_history"].append({"role": "assistant", "content": err})
+        return {"ack": err, "next": None} # Only send retry ack, wait for user's next input
+
+def tele_summarize(state):
+    # Make sure test_data is available in state
+    if not state.get("test_data") and "test_data" in globals():
+        state["test_data"] = test_data
+        log.info("Added global test_data to state for summary generation")
+    
+    # Ensure we have the current test name
+    test_name = state.get("test_data", {}).get("test_name", "")
+    if not test_name and "test_data" in globals():
+        test_name = test_data.get("test_name", "")
+    
+    # Log the current answers for debugging
+    if state.get("answers"):
+        log.info(f"Current test session has {len(state['answers'])} answers ready for analysis")
+    else:
+        log.warning("No answers found in current state, this may cause incomplete analysis")
+    
+    # Prepare results for summarization - only use current session data
+    # Don't attempt to load from test-result.json as that may mix with other tests
+    result = summarize_results(state, {
+        "test_name": test_name,
+        "answers": state.get("answers", []),
+        "user_name": state.get("user_name", "Unknown User"),
+        "user_age": state.get("user_age", 0)
+    })
+    
+    # Now save the results (after analysis is complete)
+    if state.get("answers") and state.get("chat_id"):
+        all_results = load_test_results()
+        users_dict = all_results.get("users", {})
+        
+        chat_id_str = str(state["chat_id"])
+        if chat_id_str not in users_dict:
+            users_dict[chat_id_str] = {}
+        
+        # Create test results object with analysis included
+        test_result_obj = {
+            "test_name": test_name,
+            "answers": state["answers"],
+            "user_name": state.get("user_name", "Unknown User"),
+            "user_age": state.get("user_age", 0),
+            "analysis": result,
+            "analysis_timestamp": time.time()
+        }
+        
+        # Use timestamp to make each test entry unique
+        timestamp_str = str(int(time.time()))
+        users_dict[chat_id_str][f"{test_name}_{timestamp_str}"] = test_result_obj
+        
+        # Make sure the users dict is attached to all_results
+        all_results["users"] = users_dict
+        
+        save_test_results(all_results)
+        log.info(f"Saved test results for user {chat_id_str} to test-result.json with {len(state['answers'])} answers")
+    
+    return result
+
+# GRAPH SETUP
 graph = StateGraph(TestState)
 
-# --- Nodes ---
+# Nodes
 graph.add_node("initialize", initialize)
 graph.add_node("ask_question", ask_question)
 graph.add_node("decide_next", decide_next)
 graph.add_node("summarize", summarize)
 
-# --- Edges & Conditional Edges ---
+# Edges & Conditional Edges
 graph.set_entry_point("initialize")
 graph.add_edge("initialize", "ask_question")
 graph.add_edge("ask_question", "decide_next")
+graph.add_edge("decide_next", "summarize")
 graph.add_conditional_edges(
     "decide_next",
     lambda state: state["next_node"],
@@ -648,124 +536,10 @@ graph.add_conditional_edges(
     }
 )
 
-# --- Compile Graph ---
+# Compile Graph
 compiled_graph = graph.compile()
 
-#==============================================================================#
-#                               APPLICATION ENTRY                              #
-#==============================================================================#
-
-# --- Run Graph ---
+# APPLICATION ENTRY
 if __name__ == "__main__":
     log.info("Launching the Comprehensive AI Psychological Test Platform")
     compiled_graph.invoke({})
-
-# ===== Telegram Interface Helper Functions =====
-
-def tele_initialize(user_name: str, test_type: str = "MBTI"):
-	# Select test data based on test_type:
-	global test_data
-	if test_type.upper() == "MBTI":
-		test_data = all_tests["tests"][0]
-	elif test_type.upper() == "DISK":
-		test_data = all_tests["tests"][1] if len(all_tests["tests"]) > 1 else all_tests["tests"][0]
-	else:
-		test_data = all_tests["tests"][0]
-	conversation_history = [
-		{"role": "assistant", "content": INTRO_TEXT},
-		{"role": "user", "content": f"My name is {user_name}"}
-	]
-	state = {
-		"current_question": 0,
-		"finished": False,
-		"user_name": user_name,
-		"conversation_history": conversation_history,
-		"last_answer": None
-	}
-	return state
-
-def tele_get_question(state):
-    if state["finished"]:
-        return None
-    idx = state["current_question"]
-    question_data = test_data['questions'][idx]
-    question_text = conversationalize_question(
-        state,
-        question_data['question'],
-        idx + 1,
-        len(test_data['questions'])
-    )
-    # Prepare options text
-    options_text = "\n".join([f"{i+1}. {opt}" for i, opt in enumerate(question_data['options'])])
-    # Update conversation history
-    state['conversation_history'].append({
-        "role": "assistant",
-        "content": question_text,
-        "context": f"question_{idx+1}"
-    })
-    return f"Question {idx+1}/{len(test_data['questions'])}:\n{question_text}\nOptions:\n{options_text}"
-
-def tele_process_answer(state, user_input):
-    idx = state["current_question"]
-    question_data = test_data['questions'][idx]
-    # Append user answer to conversation history
-    state['conversation_history'].append({
-        "role": "user",
-        "content": user_input,
-        "context": f"telegram_answer_q{idx+1}"
-    })
-    is_valid, selected_option, response_analysis = semantic_validate_and_match(
-        state,
-        question_data['question'],
-        question_data['options'],
-        user_input
-    )
-    if is_valid and selected_option:
-        current_answer = {
-            "response": user_input,
-            "selected_option": selected_option,
-            "question": question_data['question']
-        }
-        test_results["answers"].append({
-            "question_id": question_data['id'],
-            "question": question_data['question'],
-            "selected_option": selected_option,
-            "original_response": user_input,
-            "response_analysis": response_analysis,
-            "question_number": idx + 1,
-            "timestamp": time.time()
-        })
-        if response_analysis:
-            state['conversation_history'].append({
-                "role": "system",
-                "content": f"Psychological insight for question {idx+1}: {response_analysis}"
-            })
-        state["current_question"] += 1
-        state["last_answer"] = current_answer
-        if state["current_question"] >= len(test_data['questions']):
-            state["finished"] = True
-            acknowledgment = generate_final_acknowledgment(state, user_input, selected_option)
-            state['conversation_history'].append({
-                "role": "assistant",
-                "content": acknowledgment,
-                "context": "final_acknowledgment"
-            })
-            return {"ack": acknowledgment, "next": None}
-        else:
-            return {"ack": f"Answer accepted: {selected_option}", "next": tele_get_question(state)}
-    else:
-        # For simplicity, return a generic error message and re-send the same question
-        error_message = "Invalid answer. Please try again."
-        state['conversation_history'].append({
-            "role": "assistant",
-            "content": error_message,
-            "context": f"error_response_q{idx+1}"
-        })
-        return {"ack": error_message, "next": tele_get_question(state)}
-
-def tele_summarize(state):
-    analysis = summarize_results(state, test_results)
-    test_results["analysis"] = analysis
-    test_results["user_name"] = state["user_name"]
-    test_results["analysis_timestamp"] = time.time()
-    return analysis

@@ -1,0 +1,248 @@
+@import url('https://cdn.jsdelivr.net/gh/rastikerdar/vazir-font@v30.1.0/dist/font-face.css');
+@import url('https://cdn.jsdelivr.net/npm/iranyekan-webfont@1.0.0/dist/iranyekan.css');
+
+@page {
+    size: A4;
+    margin: 2cm 2cm;
+    @bottom-center {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-size: 10pt;
+        color: #888;
+    }
+}
+
+body {
+    direction: rtl;
+    font-family: 'Vazir', 'IranYekan', 'Segoe UI Emoji', 'Apple Color Emoji', Arial, sans-serif;
+    line-height: 1.8;
+    color: #333;
+    background-color: #fff;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-size: 12pt;
+    text-align: right;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 1em;
+}
+
+.header-container {
+    position: relative;
+    background: linear-gradient(135deg, #4B0082, #6A0DAD, #8A2BE2);
+    color: #fff;
+    padding: 3rem 2rem 5rem;
+    margin-bottom: 4rem;
+    border-radius: 12px 12px 50% 50% / 12px 12px 30% 30%;
+    box-shadow: 0 10px 25px rgba(74, 20, 140, 0.25);
+    overflow: hidden;
+    text-align: center;
+}
+
+.header-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top right, rgba(255,255,255,0.2), transparent 60%);
+    z-index: 1;
+}
+
+.header-container h1 {
+    position: relative;
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    line-height: 1.2;
+    z-index: 2;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.header-container h1::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 3px;
+    background-color: rgba(255,255,255,0.6);
+    border-radius: 3px;
+}
+
+.user-info {
+    position: relative;
+    z-index: 2;
+    background-color: rgba(255,255,255,0.15);
+    border-radius: 20px;
+    padding: 0.8rem 1.5rem;
+    margin: 1rem auto 0;
+    display: inline-block;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.user-info p {
+    margin: 0;
+    font-size: 1.1rem;
+    text-align: center;
+}
+
+.user-info strong {
+    color: #fff;
+    font-weight: 700;
+}
+
+h2 {
+    font-size: 1.8em;
+    color: #4B0082;
+    border-bottom: 3px solid #ddd;
+    padding-bottom: 0.5em;
+    margin-top: 2em;
+    position: relative;
+}
+
+h2::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 60%;
+    background: #6A0DAD;
+    border-radius: 4px;
+}
+
+.section-divider {
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(to right, transparent, #6A0DAD, transparent);
+    margin: 2em 0;
+}
+
+.highlight-container {
+    background: #6A0DAD;
+    color: #fff;
+    padding: 1.5em;
+    border-radius: 20px;
+    margin-bottom: 1.5em;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.card {
+    background: #f7f9fc;
+    border-radius: 16px;
+    padding: 1.5em;
+    margin-bottom: 1.5em;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+    border-left: 6px solid #4B0082;
+}
+
+p {
+    margin-bottom: 1.2em;
+    text-align: justify;
+}
+
+ul, ol {
+    margin-bottom: 1.2em;
+    padding-right: 2em;
+    list-style: none;
+}
+
+li::before {
+    content: "🔸";
+    margin-left: 0.5em;
+}
+
+blockquote {
+    position: relative;
+    padding: 1em 1.2em 1em 2em;
+    margin: 1.5em 0;
+    background-color: #f8f9fa;
+    border-right: 6px solid #6A0DAD;
+    border-radius: 8px;
+    color: #555;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+blockquote::before {
+    content: "💬";
+    position: absolute;
+    top: 1em;
+    left: 1em;
+    font-size: 1.5em;
+}
+
+pre {
+    background-color: #f8f9fa;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.95em;
+    line-height: 1.5;
+    margin-bottom: 1.5em;
+    direction: ltr;
+    text-align: left;
+}
+
+code {
+    font-family: 'Courier New', Courier, monospace;
+    background-color: #f8f9fa;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    display: inline-block;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5em;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 0.95em;
+}
+
+th, td {
+    border: 1px solid #eee;
+    padding: 0.8em;
+    text-align: right;
+}
+
+th {
+    background-color: #4B0082;
+    color: #fff;
+    font-weight: bold;
+}
+
+tr:nth-child(even) {
+    background-color: #f8f9fa;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, #ddd, transparent);
+    margin: 2em 0;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5em auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}

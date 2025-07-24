@@ -5,7 +5,7 @@
   },
   {
     "role": "user",
-    "content": "My name is amir"
+    "content": "My name is 1"
   },
   {
     "role": "user",
@@ -13,33 +13,33 @@
   },
   {
     "role": "assistant",
-    "content": "Got it, Amir! \ud83d\ude0a Here\u2019s a more friendly way to ask that:\n\n\"When you're at a party, how do you usually like to hang out? Do you dive into conversations, or do you prefer to chill and observe the vibe?\" \n\nHow does that sound?"
+    "content": "Got it, 1! Here\u2019s a friendly and casual way to ask that question:\n\n\"When you're at a party, how do you usually like to spend your time?\" \n\nHow does that feel? \ud83d\ude0a"
   },
   {
     "role": "assistant",
-    "content": "Got it, Amir! \ud83d\ude0a Here\u2019s a more friendly way to ask that:\n\n\"When you're at a party, how do you usually like to hang out? Do you dive into conversations, or do you prefer to chill and observe the vibe?\" \n\nHow does that sound?",
+    "content": "Got it, 1! Here\u2019s a friendly and casual way to ask that question:\n\n\"When you're at a party, how do you usually like to spend your time?\" \n\nHow does that feel? \ud83d\ude0a",
     "context": "question_1"
   },
   {
     "role": "user",
-    "content": "2",
+    "content": "1",
     "context": "answer_attempt_1_q1"
   },
   {
     "role": "system",
-    "content": "Psychological insight for question 1: The user selected option 2 directly. This shows clear decision-making and a preference for direct communication."
+    "content": "Psychological insight for question 1: The user selected option 1 directly. This shows clear decision-making and a preference for direct communication."
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"2\" to the previous question, \nwhich matched with the option: \"Interact with a few, familiar faces\".\n\nWe're now on question 2 out of 8.\nThe next question is: 'When making decisions, do you usually rely on:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"Interact with many people, including strangers\".\n\nWe're now on question 2 out of 8.\nThe next question is: 'When making decisions, do you usually rely on:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Great choice, Amir! Interacting with familiar faces can make a party feel so much more comfortable. \ud83d\ude0a \n\nNow, when it comes to making decisions, do you find yourself leaning more on your gut feelings or do you prefer to weigh the pros and cons carefully? What\u2019s your style?"
+    "content": "That's great to hear, 1! It sounds like you enjoy interacting with many people, including strangers at parties. \ud83d\ude0a\n\nNow, let's move on to the next question in a friendly way:\n\n\"When you're making decisions, do you usually trust your gut feeling or prefer to analyze things logically?\" \n\nHow does that sound to you?"
   },
   {
     "role": "assistant",
-    "content": "Great choice, Amir! Interacting with familiar faces can make a party feel so much more comfortable. \ud83d\ude0a \n\nNow, when it comes to making decisions, do you find yourself leaning more on your gut feelings or do you prefer to weigh the pros and cons carefully? What\u2019s your style?",
+    "content": "That's great to hear, 1! It sounds like you enjoy interacting with many people, including strangers at parties. \ud83d\ude0a\n\nNow, let's move on to the next question in a friendly way:\n\n\"When you're making decisions, do you usually trust your gut feeling or prefer to analyze things logically?\" \n\nHow does that sound to you?",
     "context": "question_2"
   },
   {
@@ -53,15 +53,15 @@
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"1\" to the previous question, \nwhich matched with the option: \"Objective logic and analysis\".\n\nWe're now on question 3 out of 8.\nThe next question is: 'Do you prefer to focus on:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"Objective logic and analysis\".\n\nWe're now on question 3 out of 8.\nThe next question is: 'Do you prefer to focus on:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "That's a smart approach, Amir! Relying on objective logic and analysis can really help in making clear decisions. \ud83d\udc4d \n\nNow, when you think about what to focus on, do you prefer the big picture and future possibilities, or do you enjoy diving into the details and specifics? What feels more natural for you?"
+    "content": "I really like how you trust logic and analysis when making decisions, 1\u2014that\u2019s a strong approach! \ud83d\ude0a\n\nNow, tell me, do you usually find yourself more focused on the big picture or on the little details around you?"
   },
   {
     "role": "assistant",
-    "content": "That's a smart approach, Amir! Relying on objective logic and analysis can really help in making clear decisions. \ud83d\udc4d \n\nNow, when you think about what to focus on, do you prefer the big picture and future possibilities, or do you enjoy diving into the details and specifics? What feels more natural for you?",
+    "content": "I really like how you trust logic and analysis when making decisions, 1\u2014that\u2019s a strong approach! \ud83d\ude0a\n\nNow, tell me, do you usually find yourself more focused on the big picture or on the little details around you?",
     "context": "question_3"
   },
   {
@@ -75,37 +75,37 @@
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"1\" to the previous question, \nwhich matched with the option: \"The reality of how things are\".\n\nWe're now on question 4 out of 8.\nThe next question is: 'Which statement best describes your approach to work?'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"The reality of how things are\".\n\nWe're now on question 4 out of 8.\nThe next question is: 'Which statement best describes your approach to work?'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Nice choice, Amir! Focusing on the reality of how things are helps keep things grounded. \ud83c\udf1f \n\nNow, when it comes to your approach to work, would you say you\u2019re more about getting things done efficiently, or do you prefer to take your time and ensure everything is perfect? What\u2019s your vibe?"
+    "content": "I appreciate how grounded you are, 1\u2014focusing on the reality of things shows a clear and practical mindset! \ud83d\ude0a\n\nWhen it comes to work, would you say you like to stick to a plan or prefer to keep things flexible and go with the flow?"
   },
   {
     "role": "assistant",
-    "content": "Nice choice, Amir! Focusing on the reality of how things are helps keep things grounded. \ud83c\udf1f \n\nNow, when it comes to your approach to work, would you say you\u2019re more about getting things done efficiently, or do you prefer to take your time and ensure everything is perfect? What\u2019s your vibe?",
+    "content": "I appreciate how grounded you are, 1\u2014focusing on the reality of things shows a clear and practical mindset! \ud83d\ude0a\n\nWhen it comes to work, would you say you like to stick to a plan or prefer to keep things flexible and go with the flow?",
     "context": "question_4"
   },
   {
     "role": "user",
-    "content": "2",
+    "content": "1",
     "context": "answer_attempt_1_q4"
   },
   {
     "role": "system",
-    "content": "Psychological insight for question 4: The user selected option 2 directly. This shows clear decision-making and a preference for direct communication."
+    "content": "Psychological insight for question 4: The user selected option 1 directly. This shows clear decision-making and a preference for direct communication."
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"2\" to the previous question, \nwhich matched with the option: \"I prefer to be spontaneous and flexible\".\n\nWe're now on question 5 out of 8.\nThe next question is: 'How do you recharge your energy?'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"I like to plan everything in advance\".\n\nWe're now on question 5 out of 8.\nThe next question is: 'How do you recharge your energy?'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "I love that spontaneity, Amir! Being flexible can really open up new experiences. \ud83c\udf08 \n\nNow, when it comes to recharging your energy, do you prefer to relax by spending time alone, or do you feel more energized when you're around friends and family? What works best for you?"
+    "content": "I see you're someone who likes to plan everything in advance, 1\u2014having a structured approach can be really beneficial! \ud83d\ude0a\n\nWhen it comes to recharging your energy, do you usually prefer spending time alone to relax or being around others to feel energized?"
   },
   {
     "role": "assistant",
-    "content": "I love that spontaneity, Amir! Being flexible can really open up new experiences. \ud83c\udf08 \n\nNow, when it comes to recharging your energy, do you prefer to relax by spending time alone, or do you feel more energized when you're around friends and family? What works best for you?",
+    "content": "I see you're someone who likes to plan everything in advance, 1\u2014having a structured approach can be really beneficial! \ud83d\ude0a\n\nWhen it comes to recharging your energy, do you usually prefer spending time alone to relax or being around others to feel energized?",
     "context": "question_5"
   },
   {
@@ -119,37 +119,37 @@
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"1\" to the previous question, \nwhich matched with the option: \"Spending time alone\".\n\nWe're now on question 6 out of 8.\nThe next question is: 'When learning new information, do you prefer:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"Spending time alone\".\n\nWe're now on question 6 out of 8.\nThe next question is: 'When learning new information, do you prefer:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Spending time alone to recharge is such a great way to find your balance, Amir! \ud83e\uddd8\u200d\u2642\ufe0f \n\nNow, when you\u2019re learning something new, do you prefer to dive into hands-on experiences, or do you like to read and gather information first? What\u2019s your favorite way to soak up knowledge?"
+    "content": "It\u2019s wonderful that you know how to recharge by spending some quality alone time, 1\u2014that self-awareness is so important! \ud83d\ude0a\n\nWhen you\u2019re learning something new, do you like to dive into the facts and details first, or do you prefer to understand the overall idea before anything else?"
   },
   {
     "role": "assistant",
-    "content": "Spending time alone to recharge is such a great way to find your balance, Amir! \ud83e\uddd8\u200d\u2642\ufe0f \n\nNow, when you\u2019re learning something new, do you prefer to dive into hands-on experiences, or do you like to read and gather information first? What\u2019s your favorite way to soak up knowledge?",
+    "content": "It\u2019s wonderful that you know how to recharge by spending some quality alone time, 1\u2014that self-awareness is so important! \ud83d\ude0a\n\nWhen you\u2019re learning something new, do you like to dive into the facts and details first, or do you prefer to understand the overall idea before anything else?",
     "context": "question_6"
   },
   {
     "role": "user",
-    "content": "2",
+    "content": "1",
     "context": "answer_attempt_1_q6"
   },
   {
     "role": "system",
-    "content": "Psychological insight for question 6: The user selected option 2 directly. This shows clear decision-making and a preference for direct communication."
+    "content": "Psychological insight for question 6: The user selected option 1 directly. This shows clear decision-making and a preference for direct communication."
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"2\" to the previous question, \nwhich matched with the option: \"Abstract theories and ideas\".\n\nWe're now on question 7 out of 8.\nThe next question is: 'In a conflict, do you tend to:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"Practical details and facts\".\n\nWe're now on question 7 out of 8.\nThe next question is: 'In a conflict, do you tend to:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Great choice, Amir! Embracing abstract theories and ideas can really expand your understanding. \ud83c\udf1f \n\nNow, when you find yourself in a conflict, do you usually try to resolve it by discussing your feelings openly, or do you prefer to take a step back and think things through before responding? What\u2019s your go-to approach?"
+    "content": "I really admire how you focus on practical details and facts when learning, 1\u2014that\u2019s a smart way to get a solid grasp on things! \ud83d\ude0a\n\nWhen conflicts come up, do you usually try to talk things through calmly, or do you prefer to take some space and cool down first?"
   },
   {
     "role": "assistant",
-    "content": "Great choice, Amir! Embracing abstract theories and ideas can really expand your understanding. \ud83c\udf1f \n\nNow, when you find yourself in a conflict, do you usually try to resolve it by discussing your feelings openly, or do you prefer to take a step back and think things through before responding? What\u2019s your go-to approach?",
+    "content": "I really admire how you focus on practical details and facts when learning, 1\u2014that\u2019s a smart way to get a solid grasp on things! \ud83d\ude0a\n\nWhen conflicts come up, do you usually try to talk things through calmly, or do you prefer to take some space and cool down first?",
     "context": "question_7"
   },
   {
@@ -163,53 +163,53 @@
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"1\" to the previous question, \nwhich matched with the option: \"Address the issue directly with rational discussion\".\n\nWe're now on question 8 out of 8.\nThe next question is: 'When working on a project, do you:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the previous question, \nwhich matched with the option: \"Address the issue directly with rational discussion\".\n\nWe're now on question 8 out of 8.\nThe next question is: 'When working on a project, do you:'\n\nFirst, briefly acknowledge their previous answer in a positive way.\nThen, transform the question into a friendly, conversational format that feels like a natural chat.\nMake it engaging and personal, as if you're having a real conversation with the test-taker.\nKeep your response concise (2-3 sentences max).\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Awesome choice, Amir! Addressing issues directly with rational discussion is such a constructive way to handle conflict. \ud83d\udc4d \n\nNow, when you\u2019re working on a project, do you prefer to plan everything out in detail before diving in, or do you like to jump in and adapt as you go? What\u2019s your style when it comes to project work?"
+    "content": "I really like how you handle conflicts by addressing issues directly with calm, rational discussions\u2014that takes confidence and maturity, 1! \ud83d\ude0a\n\nWhen you\u2019re working on a project, do you prefer to work steadily from start to finish, or do you like to jump around and tackle things as they come?"
   },
   {
     "role": "assistant",
-    "content": "Awesome choice, Amir! Addressing issues directly with rational discussion is such a constructive way to handle conflict. \ud83d\udc4d \n\nNow, when you\u2019re working on a project, do you prefer to plan everything out in detail before diving in, or do you like to jump in and adapt as you go? What\u2019s your style when it comes to project work?",
+    "content": "I really like how you handle conflicts by addressing issues directly with calm, rational discussions\u2014that takes confidence and maturity, 1! \ud83d\ude0a\n\nWhen you\u2019re working on a project, do you prefer to work steadily from start to finish, or do you like to jump around and tackle things as they come?",
     "context": "question_8"
   },
   {
     "role": "user",
-    "content": "2",
+    "content": "1",
     "context": "answer_attempt_1_q8"
   },
   {
     "role": "system",
-    "content": "Psychological insight for question 8: The user selected option 2 directly. This shows clear decision-making and a preference for direct communication."
+    "content": "Psychological insight for question 8: The user selected option 1 directly. This shows clear decision-making and a preference for direct communication."
   },
   {
     "role": "user",
-    "content": "The user (amir) just answered \"2\" to the final question of the 'Example MBTI Personality Test' test.\nTheir answer matched with: \"Go with the flow and adjust as you go\"\n\nGenerate a brief (1 sentence) acknowledgment that feels natural and personal.\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "The user (1) just answered \"1\" to the final question of the 'Example MBTI Personality Test' test.\nTheir answer matched with: \"Follow a clear plan and schedule\"\n\nGenerate a brief (1 sentence) acknowledgment that feels natural and personal.\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "I love that flexible approach, Amir! Going with the flow and adjusting as you go can lead to some amazing discoveries. \ud83c\udf0a\u2728"
+    "content": "Great job, 1! It's clear that you thrive when following a clear plan and schedule. Well done! \ud83d\ude0a"
   },
   {
     "role": "assistant",
-    "content": "I love that flexible approach, Amir! Going with the flow and adjusting as you go can lead to some amazing discoveries. \ud83c\udf0a\u2728",
+    "content": "Great job, 1! It's clear that you thrive when following a clear plan and schedule. Well done! \ud83d\ude0a",
     "context": "final_acknowledgment"
   },
   {
     "role": "user",
-    "content": "You're providing a comprehensive psychological analysis based on this test: ''\nHere are the user's answers along with individual psychological insights for each response: \n[\n  {\n    \"question\": \"At a party, do you tend to:\",\n    \"selected_option\": \"Interact with a few, familiar faces\",\n    \"user_response\": \"2\",\n    \"psychological_insight\": \"The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When making decisions, do you usually rely on:\",\n    \"selected_option\": \"Objective logic and analysis\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"Do you prefer to focus on:\",\n    \"selected_option\": \"The reality of how things are\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"Which statement best describes your approach to work?\",\n    \"selected_option\": \"I prefer to be spontaneous and flexible\",\n    \"user_response\": \"2\",\n    \"psychological_insight\": \"The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"How do you recharge your energy?\",\n    \"selected_option\": \"Spending time alone\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When learning new information, do you prefer:\",\n    \"selected_option\": \"Abstract theories and ideas\",\n    \"user_response\": \"2\",\n    \"psychological_insight\": \"The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"In a conflict, do you tend to:\",\n    \"selected_option\": \"Address the issue directly with rational discussion\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When working on a project, do you:\",\n    \"selected_option\": \"Go with the flow and adjust as you go\",\n    \"user_response\": \"2\",\n    \"psychological_insight\": \"The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\"\n  }\n]\n\nCONVERSATION CONTEXT:\nAmir exhibits a direct and concise communication style, preferring straightforward questions and answers without unnecessary elaboration. His emotional tone remains positive and open, indicating comfort with the process. In decision-making, Amir shows an analytical approach, often relying on objective reasoning while also displaying a willingness to be flexible and spontaneous in certain contexts. The personality traits emerging suggest a balance between logical thinking and adaptability, with consistent preferences for direct engagement and rational discussions throughout the responses.\n\nPSYCHOLOGICAL INSIGHTS SUMMARY:\n- The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 2 directly. This shows clear decision-making and a preference for direct communication.\n\nYou have access to previous psychological analyses for each question. Use these insights to form a cohesive\nand consistent personality profile for amir.\n\nBased on the individual insights, conversation patterns, and the overall response profile, provide a detailed and personalized analysis \nof amir's personality. Include:\n\n1. Key personality traits identified across multiple answers (with specific examples)\n2. Deeper psychological insights about their cognitive processing style\n3. Communication patterns and interpersonal tendencies\n4. Potential strengths based on their response patterns\n5. Areas for potential personal growth\n6. How their different personality traits work together or create tensions\n7. A positive and encouraging conclusion\n\nSTYLING REQUIREMENTS:\n- Create clear sections with emojis as section markers (use 1 relevant emoji per section)\n- Use a visually appealing structure with line breaks between sections\n- Bold or emphasize key insights and important personality traits\n- Maintain a balanced, professional yet warm tone\n- Use 2-3 relevant emojis in the introduction and conclusion for a friendly feel\n- Keep the language sophisticated but accessible\n\nMake this feel like an insightful conversation from an experienced clinical psychologist, but maintain a warm and supportive tone.\nReference specific patterns in their answers and conversation style to personalize the analysis.\n\nIMPORTANT: Your response MUST be in english language only. Use english headings, paragraphs, and styling."
+    "content": "You're providing a comprehensive psychological analysis based on this test: ''\nHere are the user's answers along with individual psychological insights for each response: \n[\n  {\n    \"question\": \"At a party, do you tend to:\",\n    \"selected_option\": \"Interact with many people, including strangers\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When making decisions, do you usually rely on:\",\n    \"selected_option\": \"Objective logic and analysis\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"Do you prefer to focus on:\",\n    \"selected_option\": \"The reality of how things are\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"Which statement best describes your approach to work?\",\n    \"selected_option\": \"I like to plan everything in advance\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"How do you recharge your energy?\",\n    \"selected_option\": \"Spending time alone\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When learning new information, do you prefer:\",\n    \"selected_option\": \"Practical details and facts\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"In a conflict, do you tend to:\",\n    \"selected_option\": \"Address the issue directly with rational discussion\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  },\n  {\n    \"question\": \"When working on a project, do you:\",\n    \"selected_option\": \"Follow a clear plan and schedule\",\n    \"user_response\": \"1\",\n    \"psychological_insight\": \"The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\"\n  }\n]\n\nCONVERSATION CONTEXT:\n1. Communication style: The user tends to respond directly and prefers concise, to-the-point answers. They show a preference for clear and straightforward communication.\n2. Emotional tone: The user maintains a neutral emotional tone throughout the conversation, focusing on providing accurate responses without adding emotional elements.\n3. Decision-making patterns: The user demonstrates quick decision-making abilities and a preference for logical and analytical approaches in their responses.\n4. Consistent personality traits: The user consistently displays a direct and decisive personality, showing a preference for practicality and rationality in their choices.\n5. Response style: The user's response style remains consistent, with a focus on providing clear and concise answers without veering into detailed explanations or emotional expressions.\n\nPSYCHOLOGICAL INSIGHTS SUMMARY:\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n- The user selected option 1 directly. This shows clear decision-making and a preference for direct communication.\n\nYou have access to previous psychological analyses for each question. Use these insights to form a cohesive\nand consistent personality profile for 1.\n\nBased on the individual insights, conversation patterns, and the overall response profile, provide a detailed and personalized analysis \nof 1's personality. Include:\n\n1. Key personality traits identified across multiple answers (with specific examples)\n2. Deeper psychological insights about their cognitive processing style\n3. Communication patterns and interpersonal tendencies\n4. Potential strengths based on their response patterns\n5. Areas for potential personal growth\n6. How their different personality traits work together or create tensions\n7. A positive and encouraging conclusion\n\nSTYLING REQUIREMENTS:\n- Create clear sections with emojis as section markers (use 1 relevant emoji per section)\n- Use a visually appealing structure with line breaks between sections\n- Bold or emphasize key insights and important personality traits\n- Maintain a balanced, professional yet warm tone\n- Use 2-3 relevant emojis in the introduction and conclusion for a friendly feel\n- Keep the language sophisticated but accessible\n\nMake this feel like an insightful conversation from an experienced clinical psychologist, but maintain a warm and supportive tone.\nReference specific patterns in their answers and conversation style to personalize the analysis.\n\nIMPORTANT: Your response MUST be in english language only. Use english headings, paragraphs, and styling."
   },
   {
     "role": "assistant",
-    "content": "### \ud83c\udf1f Personality Profile Analysis for Amir\n\nHello, Amir! \ud83d\ude0a Based on your thoughtful responses throughout the test, I've gathered some valuable insights into your personality. Let's dive into your unique traits and tendencies!\n\n---\n\n### \ud83d\udd11 Key Personality Traits Identified\n\n1. **Direct Communicator**: Your consistent preference for straightforward answers reflects a personality that values clarity and efficiency. For example, your choice to interact with familiar faces at a party shows comfort in direct engagement.\n\n2. **Analytical Thinker**: Your reliance on **objective logic and analysis** when making decisions highlights a strong analytical processing style. You approach situations with a rational mindset, which can be beneficial in problem-solving scenarios.\n\n3. **Adaptable and Spontaneous**: While you favor logic, your preference for being spontaneous at work and going with the flow during projects showcases your flexibility. This balance between structure and adaptability is a valuable trait!\n\n---\n\n### \ud83e\udde0 Deeper Psychological Insights\n\nYour cognitive processing style suggests that you enjoy engaging with **abstract theories and ideas**, which allows you to think critically and creatively. This preference for conceptual thinking indicates that you often seek to understand the underlying principles behind the information you encounter.\n\n---\n\n### \ud83d\udcac Communication Patterns and Interpersonal Tendencies\n\nYour communication style is characterized by **directness** and **clarity**. You exhibit comfort in discussing issues openly, as seen in your choice to address conflicts with rational discussions. This openness can foster trust and understanding in your relationships.\n\n---\n\n### \ud83d\udcaa Potential Strengths\n\n- **Effective Problem-Solving**: Your analytical approach equips you with strong problem-solving skills.\n- **Flexibility**: Your adaptability allows you to navigate various situations with ease, making you resilient in the face of change.\n- **Strong Interpersonal Skills**: Your preference for direct communication fosters positive interactions with others, creating a supportive environment in both personal and professional settings.\n\n---\n\n### \ud83c\udf31 Areas for Potential Personal Growth\n\n- **Balancing Spontaneity and Structure**: While your adaptability is a strength, it may also be beneficial to find a balance between spontaneity and planning to ensure that goals are met without unnecessary stress.\n- **Emotional Expression**: Exploring deeper emotional expressions in conflicts could enhance your interpersonal connections, allowing you to connect on a more personal level.\n\n---\n\n### \u2696\ufe0f How Your Traits Work Together\n\nYour logical reasoning and adaptability complement each other well, allowing you to approach challenges with both a structured mindset and a flexible attitude. However, at times, the tension between your analytical side and your spontaneous tendencies may lead to internal conflicts\u2014especially when decisions require immediate action without prior analysis.\n\n---\n\n### \ud83c\udf08 Conclusion\n\nAmir, your personality reveals a unique blend of analytical thinking, direct communication, and adaptability. Embrace your strengths as they will serve you well in various aspects of life! Remember, personal growth is a journey, and acknowledging areas for development is a crucial step toward becoming your best self. Keep exploring and nurturing your wonderful traits! \ud83c\udf1f\u2728\n\nIf you have any questions or want to chat more about your insights, I'm here for you! \ud83d\ude0a"
+    "content": "\ud83c\udf1f Welcome to your personalized personality insight, 1! \ud83c\udf1f  \nThank you for sharing your thoughtful and consistent responses throughout the test. Let\u2019s dive into an exploration of your unique style, strengths, and potential growth areas with a warm and professional perspective. \ud83d\ude0a\u2728\n\n---\n\n\ud83e\udde0 **Key Personality Traits**  \nYour answers consistently show a **direct, decisive, and practical approach** across different areas of life. For example, you prefer to \"interact with many people\" but recharge alone, indicating a balance between social energy and introspection. You also choose to rely on **objective logic and analysis** when making decisions, alongside focusing on \u201cthe reality of how things are\u201d rather than abstract possibilities. Your approach to work and projects\u2014**planning everything in advance** and **following clear schedules**\u2014highlights how much you value structure and order. This strong preference for **clarity and practicality** shines throughout your responses.\n\n---\n\n\ud83d\udd0d **Cognitive Processing Style**  \nYou demonstrate a cognitive style that favors **logical reasoning and concrete information.** Preferring facts and details over intuition or speculative ideas suggests a strong grounding in reality and an analytical mindset. This approach supports clear problem-solving and efficient decision-making. You also lean toward directly addressing conflicts with rational discussion, which indicates emotionally regulated processing\u2014handling challenging situations not by avoidance but bite-sized, thoughtful engagement.\n\n---\n\n\ud83d\udcac **Communication Patterns and Interpersonal Tendencies**  \nYour communication style clearly leans toward **straightforward and concise interactions.** You tend to express yourself directly and value clear, unambiguous exchanges. This likely makes you approachable in both social settings and work environments because others can count on your honesty and reliability. At the same time, your preference to recharge in solitude shows a healthy boundary with your social energy, balancing your extroverted social tendencies with moments of introspective self-care.\n\n---\n\n\ud83d\udcaa **Strengths Based on Response Patterns**  \nYour strongest assets include:  \n- **Strong decisiveness and clarity in choices** helping you navigate complex situations efficiently.  \n- A practical and methodical mindset that keeps you grounded and organized.  \n- The ability to approach conflict calmly and with rationality, fostering constructive resolutions.  \n- A balanced social energy management style, blending sociability with meaningful alone time.\n\nThese strengths suggest resilience, dependability, and the capacity to thrive in structured environments.\n\n---\n\n\ud83c\udf31 **Areas for Potential Growth**  \nWhile your decisiveness and preference for logic serve you well, consider embracing some **flexibility and openness to ambiguity** when possible. Rigid planning can occasionally limit creative spontaneity or adaptability in unpredictable situations. Additionally, inviting more emotional expression or exploring feelings during conflicts might deepen interpersonal connection beyond rational discussion alone.\n\nBeing mindful of these areas doesn\u2019t diminish your strengths but **adds nuance and balance to your approach**, enriching relationships and adaptability.\n\n---\n\n\u2696\ufe0f **Trait Interplay and Potential Tensions**  \nYour personality is characterized by a harmonious mix of **extroverted engagement (seeking social interaction) and introverted replenishment** (valuing alone time). This dynamic creates balance rather than tension, demonstrating emotional intelligence. The strong logic and planning orientation may occasionally clash with situations demanding rapid adjustment or emotional flexibility, but your analytical skills can help you navigate these moments effectively if you allow room for flexibility.\n\n---\n\n\ud83c\udf08 **Encouraging Conclusion**  \n1, your consistent and clear style is a powerful foundation for success and meaningful connections. Your ability to combine logic with social openness, all grounded in reality and planning, sets you apart as a reliable and insightful individual. Embracing small moments of flexibility and emotional reflection will complement your natural strengths beautifully. Thank you for the opportunity to explore your personality today\u2014keep shining with your thoughtful, direct, and grounded self! \ud83c\udf1f\ud83d\udcac\ud83c\udf3f\n\nIf you ever want to chat more or explore other aspects, I\u2019m here with you every step of the way. \ud83d\ude0a"
   },
   {
     "role": "user",
-    "content": "Create a warm closing message for amir who just completed the 'Example MBTI Personality Test' test.\nThank them for participating, encourage reflection on the insights provided, and wish them well on their journey of self-discovery.\n\nUse 1-2 appropriate emojis to make the message friendly and engaging.\n\nIMPORTANT: Your response MUST be in english language only."
+    "content": "Create a warm closing message for 1 who just completed the 'Example MBTI Personality Test' test.\nThank them for participating, encourage reflection on the insights provided, and wish them well on their journey of self-discovery.\n\nUse 1-2 appropriate emojis to make the message friendly and engaging.\n\nIMPORTANT: Your response MUST be in english language only."
   },
   {
     "role": "assistant",
-    "content": "Thank you so much for participating in the 'Example MBTI Personality Test,' Amir! \ud83c\udf1f I hope you found the insights valuable and that they spark some reflection on your unique personality traits. Wishing you all the best on your journey of self-discovery\u2014embrace every step along the way! \ud83d\ude0a"
+    "content": "Thank you so much for completing the Example MBTI Personality Test, 1! \ud83c\udf1f I encourage you to take some time to reflect on the insights we uncovered together\u2014they can be a helpful guide on your ongoing journey of self-discovery. Wishing you all the best as you continue to learn and grow! \ud83d\ude0a"
   }
 ]
