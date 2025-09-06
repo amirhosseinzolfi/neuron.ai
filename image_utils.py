@@ -24,7 +24,7 @@ def save_image_from_url(url: str, prompt: str, image_num: int, folder_path: str,
 
 def generate_image_g4f(prompt: str, index: int, folder_path: str, model: str, image_num: int, width: int, height: int, task_id: str=None) -> str:
     start=time.time()
-    if model.lower()=="midjourney" and "--ar" not in prompt: prompt+=" --ar 16:9"
+    if model.lower()=="flux" and "--ar" not in prompt: prompt+=" --ar 16:9"
     try:
         resp = client.images.generate(model=model,prompt=prompt,response_format="url",
                                       width=width,height=height,timeout=REQUESTS_TIMEOUT)

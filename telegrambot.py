@@ -7,7 +7,7 @@ import re
 import time
 import os
 import threading
-from functools import wraps
+import subprocess, sys, shutil
 from telegram import Update, BotCommand, ParseMode
 from telegram.ext import (
     Updater, CommandHandler, CallbackQueryHandler,
@@ -21,8 +21,9 @@ from rich import print as rprint
 import db
 import telegram_ui as ui
 import telegram_handlers as handlers
+from utils import chat_states, ADMINS
 
-# Setup rich console and logging
+# Setup logging
 console = Console()
 logging.basicConfig(
     level=logging.INFO,
@@ -31,12 +32,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import chat_states and ADMINS from utils.py
-from utils import chat_states, ADMINS
-
-# --------------------------
 # G4F API Server Bootstrap
-# --------------------------
 try:
     from g4f.api import run_api
 except ImportError:
@@ -64,21 +60,14 @@ def _parse_table_row(line: str) -> list[str]:
     return [cell.strip() for cell in line.strip().strip('|').split('|')]
 
 def format_md_for_telegram(md_text: str) -> list:
-    """
-    Convert markdown to Telegram-compatible HTML and split into chunks if needed.
-    Returns a list of message chunks ready to be sent.
-    """
-    # --- Stage 1: Pre-processing and Table Conversion ---
+    """Convert markdown to Telegram-compatible HTML and split into chunks if needed."""
+    # Stage 1: Table conversion
     lines = md_text.split('\n')
     processed_lines = []
     i = 0
+    
     while i < len(lines):
         line = lines[i]
-        # Try to detect a Markdown table
-        # A table has: | Header | ... |
-        #              | ---    | ... |
-        #              | Data   | ... |
-        
         header_cells = _parse_table_row(line)
         is_header_row = bool(header_cells) and not all('---' in cell or cell.strip() == '' for cell in header_cells)
 
@@ -88,244 +77,148 @@ def format_md_for_telegram(md_text: str) -> list:
             is_separator_row = bool(separator_cells) and all('---' in cell or cell.strip().replace(':','').replace('-','').isspace() for cell in separator_cells)
 
             if is_separator_row:
-                # Found a table header and separator
-                table_html_lines = []
+                table_html_lines = ["<b>" + "</b> | <b>".join(header_cells) + "</b>"]
+                i += 2
                 
-                # Process header
-                table_html_lines.append("<b>" + "</b> | <b>".join(header_cells) + "</b>")
-                
-                # Optional: Add a visual separator line (can be simple or more complex)
-                # table_html_lines.append("⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯")
-
-                i += 2 # Move past header and separator
-                
-                # Process data rows
                 while i < len(lines):
                     data_line_candidate = lines[i]
                     data_cells = _parse_table_row(data_line_candidate)
-                    if data_cells: # It's a table data row
-                        # Using <code> for cells for potential monospacing.
-                        # If alignment is poor, replace <code>...</code> with just the cell content.
+                    if data_cells:
                         table_html_lines.append("<code>" + "</code> | <code>".join(data_cells) + "</code>")
                         i += 1
-                    else: # Not a table row, table ends
+                    else:
                         break
                 
                 processed_lines.extend(table_html_lines)
-                processed_lines.append("") # Add a blank line after the table for spacing
-                continue # Continue to the next line in the original lines
+                processed_lines.append("")
+                continue
         
         processed_lines.append(line)
         i += 1
         
     html = "\n".join(processed_lines)
 
-    # --- Stage 2: Standard Markdown to HTML Conversions ---
+    # Stage 2: Markdown to HTML conversions
+    conversions = [
+        (r'^#\s*([^#\n]+?)\s*#*\s*$', r'<b>🔶 \1</b>'),  # H1يال
+        (r'^##\s*([^#\n]+?)\s*#*\s*$', r'<b>🔷 \1</b>'), # H2
+        (r'^###\s*([^#\n]+?)\s*#*\s*$', r'<b>🔹 \1</b>'), # H3
+        (r'\*\*(.*?)\*\*', r'<b>\1</b>'),  # Bold
+        (r'__(.*?)__', r'<b>\1</b>'),      # Bold alternative
+        (r'(?<!\w)\*(.*?)\*(?!\w)', r'<i>\1</i>'),  # Italic *
+        (r'(?<!\w)_(.*?)_(?!\w)', r'<i>\1</i>'),    # Italic _
+        (r'```(?:\w*\n)?(.*?)\n?```', r'<pre>\1</pre>'),  # Code blocks
+        (r'`(.*?)`', r'<code>\1</code>'),  # Inline code
+        (r'^\s*-\s+(.*?)(?:\n|$)', r'• \1\n'),  # Unordered lists
+        (r'^\s*\*\s+(.*?)(?:\n|$)', r'• \1\n'), # Unordered lists *
+        (r'^\s{2,4}([-*])\s+(.*?)(?:\n|$)', r'  ◦ \2\n'),  # Nested lists
+        (r'^\s*[-*_]{3,}\s*$', r'⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n'),  # HR
+    ]
     
-    # Replace markdown headers with HTML headers - improved regex
-    html = re.sub(r'^#\s*([^#\n]+?)\s*#*\s*$', r'<b>🔶 \1</b>', html, flags=re.MULTILINE)  # H1
-    html = re.sub(r'^##\s*([^#\n]+?)\s*#*\s*$', r'<b>🔷 \1</b>', html, flags=re.MULTILINE) # H2
-    html = re.sub(r'^###\s*([^#\n]+?)\s*#*\s*$', r'<b>🔹 \1</b>', html, flags=re.MULTILINE) # H3
+    for pattern, replacement in conversions:
+        html = re.sub(pattern, replacement, html, flags=re.MULTILINE | re.DOTALL)
     
-    # Replace markdown bold/italic with HTML tags
-    html = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', html) # Bold
-    html = re.sub(r'__(.*?)__', r'<b>\1</b>', html)   # Bold (alternative)
-    # Italic: ensure it doesn't conflict with internal underscores in words or links
-    html = re.sub(r'(?<!\w)\*(.*?)\*(?!\w)', r'<i>\1</i>', html)   # Italic *
-    html = re.sub(r'(?<!\w)_(.*?)_(?!\w)', r'<i>\1</i>', html)     # Italic _
-
-    # Replace markdown code blocks and inline code
-    html = re.sub(r'```(?:\w*\n)?(.*?)\n?```', r'<pre>\1</pre>', html, flags=re.DOTALL) # Code blocks
-    html = re.sub(r'`(.*?)`', r'<code>\1</code>', html) # Inline code
-    
-    # Improve list rendering
-    # Unordered lists
-    html = re.sub(r'^\s*-\s+(.*?)(?:\n|$)', r'• \1\n', html, flags=re.MULTILINE)
-    html = re.sub(r'^\s*\*\s+(.*?)(?:\n|$)', r'• \1\n', html, flags=re.MULTILINE) # Support * for lists
-    
-    # Numbered lists - Persian RTL formatting with numbers at the end
+    # Persian numbered lists
     def format_numbered_item(match):
-        number = match.group(1)  # e.g., "1."
-        content = match.group(2).strip()  # the text content
-        # Convert to Persian numbers and format for RTL
+        number = match.group(1)
+        content = match.group(2).strip()
         persian_nums = {'1': '۱', '2': '۲', '3': '۳', '4': '۴', '5': '۵', 
                        '6': '۶', '7': '۷', '8': '۸', '9': '۹', '0': '۰'}
         persian_number = ''.join(persian_nums.get(char, char) for char in number.replace('.', ''))
         return f'{persian_number}. {content}\n'
     
     html = re.sub(r'^\s*(\d+\.)\s+(.*?)(?:\n|$)', format_numbered_item, html, flags=re.MULTILINE)
+    html = re.sub(r'^\s{2,4}(\d+\.)\s+(.*?)(?:\n|$)', format_numbered_item, html, flags=re.MULTILINE)
     
-    # Handle indented/nested lists with extra spacing
-    html = re.sub(r'^\s{2,4}([-*])\s+(.*?)(?:\n|$)', r'  ◦ \2\n', html, flags=re.MULTILINE)
-    
-    def format_nested_numbered_item(match):
-        number = match.group(1)  # e.g., "1."
-        content = match.group(2).strip()  # the text content
-        # Convert to Persian numbers for nested items too
-        persian_nums = {'1': '۱', '2': '۲', '3': '۳', '4': '۴', '5': '۵', 
-                       '6': '۶', '7': '۷', '8': '۸', '9': '۹', '0': '۰'}
-        persian_number = ''.join(persian_nums.get(char, char) for char in number.replace('.', ''))
-        return f'{persian_number}. {content}\n'
-    
-    html = re.sub(r'^\s{2,4}(\d+\.)\s+(.*?)(?:\n|$)', format_nested_numbered_item, html, flags=re.MULTILINE)
-    
-    # Replace markdown horizontal rules with a more visible separator
-    html = re.sub(r'^\s*[-*_]{3,}\s*$', r'⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n', html, flags=re.MULTILINE)
-    
-    # Ensure headers have proper spacing before and after
-    html = re.sub(r'(<b>.*?</b>)(?!\n\n|\n<pre>)', r'\1\n', html) # Add newline after header if not followed by double or pre
-    html = re.sub(r'\n\n(<b>.*?</b>)', r'\n\1', html) # Reduce excessive newlines before header
-    
-    # Replace multiple newlines with double newlines to maintain paragraph spacing
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    
-    # Trim leading/trailing whitespace from the whole HTML
-    html = html.strip()
+    # Clean up spacing
+    html = re.sub(r'(<b>.*?</b>)(?!\n\n|\n<pre>)', r'\1\n', html)
+    html = re.sub(r'\n\n(<b>.*?</b>)', r'\n\1', html)
+    html = re.sub(r'\n{3,}', '\n\n', html).strip()
 
-    # --- Stage 3: Splitting into Chunks ---
-    MAX_LENGTH = 4000  # slightly less than 4096 to be safe
-    chunks = []
-    
+    # Stage 3: Split into chunks
+    MAX_LENGTH = 4000
     if len(html) <= MAX_LENGTH:
-        chunks.append(html)
-    else:
-        # Try to split at paragraph breaks first (double newlines)
-        # Also consider <pre> blocks as unsplittable units if possible
-        # For simplicity, we'll stick to paragraph splitting primarily.
-        
-        # Split by a custom delimiter that respects <pre> blocks
-        split_points = []
-        last_split = 0
-        in_pre = False
-        for m in re.finditer(r'(<pre>.*?</pre>|\n\n)', html, re.DOTALL | re.IGNORECASE):
-            if m.group(0) == '\n\n' and not in_pre:
-                split_points.append(html[last_split:m.start()])
-                last_split = m.end()
-            elif m.group(0).lower().startswith('<pre>'):
-                in_pre = True
-            elif m.group(0).lower().endswith('</pre>'):
-                in_pre = False
-        split_points.append(html[last_split:])
-        
-        paragraphs = [p for p in split_points if p.strip()]
-
-        current_chunk = ""
-        for para_idx, para in enumerate(paragraphs):
-            # Check if adding the current paragraph (plus separator) exceeds max length
-            if len(current_chunk) + len(para) + (2 if current_chunk else 0) <= MAX_LENGTH:
-                if current_chunk:
-                    current_chunk += '\n\n'
-                current_chunk += para
+        return [html]
+    
+    # Split by paragraphs
+    paragraphs = [p.strip() for p in re.split(r'\n\n', html) if p.strip()]
+    chunks = []
+    current_chunk = ""
+    
+    for para in paragraphs:
+        if len(current_chunk) + len(para) + 2 <= MAX_LENGTH:
+            current_chunk += ('\n\n' if current_chunk else '') + para
+        else:
+            if current_chunk:
+                chunks.append(current_chunk)
+            
+            # Handle oversized paragraphs
+            if len(para) > MAX_LENGTH:
+                lines = para.split('\n')
+                temp_chunk = ""
+                for line in lines:
+                    if len(temp_chunk) + len(line) + 1 <= MAX_LENGTH:
+                        temp_chunk += ('\n' if temp_chunk else '') + line
+                    else:
+                        if temp_chunk:
+                            chunks.append(temp_chunk)
+                        temp_chunk = line
+                if temp_chunk:
+                    chunks.append(temp_chunk)
+                current_chunk = ""
             else:
-                # If current_chunk is not empty, store it
-                if current_chunk:
-                    chunks.append(current_chunk)
-                
-                # If the paragraph itself is too long, split it by lines or sentences
-                if len(para) > MAX_LENGTH:
-                    # Simple split by lines for very long paragraphs
-                    lines_in_para = para.split('\n')
-                    temp_para_chunk = ""
-                    for line_idx, line_in_para in enumerate(lines_in_para):
-                        if len(temp_para_chunk) + len(line_in_para) + (1 if temp_para_chunk else 0) <= MAX_LENGTH:
-                            if temp_para_chunk:
-                                temp_para_chunk += '\n'
-                            temp_para_chunk += line_in_para
-                        else:
-                            if temp_para_chunk: 
-                                chunks.append(temp_para_chunk)
-                            temp_para_chunk = line_in_para 
-                    if temp_para_chunk: 
-                        chunks.append(temp_para_chunk)
-                    current_chunk = "" 
-                else:
-                    current_chunk = para 
-        
-        if current_chunk:
-            chunks.append(current_chunk)
-
-    # Clean up empty chunks that might result from splitting
-    chunks = [chunk for chunk in chunks if chunk.strip()]
-
-    # Add "Continued..." at the end of each chunk except the last one
+                current_chunk = para
+    
+    if current_chunk:
+        chunks.append(current_chunk)
+    # Add continuation markers and part numbers
     if len(chunks) > 1:
         for i in range(len(chunks) - 1):
             chunks[i] += ui.RESULT_CHUNK_CONTINUED
-    
-    # Add part numbers if multiple chunks
-    if len(chunks) > 1:
         for i in range(len(chunks)):
             chunks[i] = ui.RESULT_CHUNK_PART.format(part_num=i+1, total_parts=len(chunks)) + chunks[i]
     
     return chunks if chunks else ["(محتوایی برای نمایش وجود ندارد)"]
 
 def format_caption_for_telegram(test_name: str, summary_content: str) -> str:
-    """
-    Format test result as a caption for an image with Telegram's caption length limits.
-    Captions are limited to 1024 characters.
-    """
-    MAX_CAPTION_LENGTH = 1000  # Leave some buffer for safety
-    
-    # Create a nice header
+    """Format test result as a caption for an image with Telegram's caption length limits."""
+    MAX_CAPTION_LENGTH = 2000
     header = f"<b>🎯 نتایج تست {test_name}</b>\n\n"
     
-    # Format the summary content using our standard function but take only first chunk
     message_chunks = format_md_for_telegram(summary_content)
     main_content = message_chunks[0] if message_chunks else summary_content
     
-    # Calculate available space for content
-    available_space = MAX_CAPTION_LENGTH - len(header) - 50  # Buffer for footer
-    
-    # Truncate content if too long
+    available_space = MAX_CAPTION_LENGTH - len(header) - 50
     if len(main_content) > available_space:
         main_content = main_content[:available_space - 3] + "..."
     
-    # Add footer if content was truncated
     footer = ""
     if len(message_chunks) > 1 or len(summary_content) > available_space:
         footer = "\n\n📄 نتایج کامل در فایل PDF ارسال شده موجود است."
     
     full_caption = header + main_content + footer
     
-    # Final safety check
     if len(full_caption) > MAX_CAPTION_LENGTH:
-        # More aggressive truncation
         content_limit = MAX_CAPTION_LENGTH - len(header) - len(footer) - 10
-        truncated_content = main_content[:content_limit] + "..."
-        full_caption = header + truncated_content + footer
+        full_caption = header + main_content[:content_limit] + "..." + footer
     
     return full_caption
 
 def send_styled_test_result(update: Update, context: CallbackContext, test_name: str, summary_content: str):
     """Send formatted test result to user with proper styling using HTML."""
     try:
-        # Create a nice header with emoji decoration
         header = ui.RESULT_HTML_HEADER.format(test_name=test_name)
-        
-        # Format the summary content using the improved function
         message_chunks = format_md_for_telegram(summary_content)
-        
-        # Determine the reply method (message or query callback)
         reply_method = update.message.reply_text if update.message else update.callback_query.message.reply_text
 
-        # Send each chunk with the header for the first chunk
         for i, chunk in enumerate(message_chunks):
-            full_message = chunk
-            if i == 0:
-                full_message = header + chunk
-            
-            reply_method(
-                full_message,
-                parse_mode=ParseMode.HTML
-            )
-            
-            # Add a small delay between messages to maintain order and avoid rate limits
-            time.sleep(0.7) # Increased delay slightly
+            full_message = (header + chunk) if i == 0 else chunk
+            reply_method(full_message, parse_mode=ParseMode.HTML)
+            time.sleep(0.7)
             
         return True
     except Exception as e:
         logger.error(f"[bold red]Error sending formatted HTML results: {e}[/bold red]")
-        # Fallback to plain text if HTML parsing fails, try to send to query or message
         fallback_reply_method = update.message.reply_text if update.message else update.callback_query.message.reply_text
         try:
             fallback_reply_method(
@@ -341,102 +234,172 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
 def send_alert_message(context, chat_id: int, message: str):
     """Send a message formatted to look like an alert notification"""
     try:
-        context.bot.send_message(
-            chat_id=chat_id,
-            text=f"🔔 {message}",
-            parse_mode=ParseMode.HTML
-        )
+        context.bot.send_message(chat_id=chat_id, text=f"🔔 {message}", parse_mode=ParseMode.HTML)
     except Exception as e:
         logger.error(f"Error sending alert message: {e}")
 
+def send_media_with_caption(context: CallbackContext, chat_id: int, media_path: str, caption: str, media_type: str = "auto"):
+    """Send media file with caption, with proper error handling."""
+    try:
+        if not os.path.exists(media_path):
+            logger.warning(f"Media file not found: {media_path}")
+            context.bot.send_message(chat_id=chat_id, text=caption, parse_mode=ParseMode.HTML)
+            return False
+            
+        # Auto-detect media type
+        if media_type == "auto":
+            ext = os.path.splitext(media_path)[1].lower()
+            type_map = {
+                '.gif': 'animation',
+                '.mp4': 'video', '.mov': 'video', '.avi': 'video',
+                '.jpg': 'photo', '.jpeg': 'photo', '.png': 'photo', '.webp': 'photo'
+            }
+            media_type = type_map.get(ext, 'document')
+        
+        with open(media_path, 'rb') as media_file:
+            send_methods = {
+                'animation': context.bot.send_animation,
+                'video': context.bot.send_video,
+                'photo': context.bot.send_photo,
+                'document': context.bot.send_document
+            }
+            
+            method = send_methods.get(media_type, context.bot.send_document)
+            kwargs = {'chat_id': chat_id, 'caption': caption, 'parse_mode': ParseMode.HTML}
+            
+            if media_type == 'animation':
+                kwargs['animation'] = media_file
+            elif media_type == 'video':
+                kwargs['video'] = media_file
+            elif media_type == 'photo':
+                kwargs['photo'] = media_file
+            else:
+                kwargs['document'] = media_file
+                
+            method(**kwargs)
+        return True
+    except Exception as e:
+        logger.error(f"Error sending media {media_path}: {e}")
+        context.bot.send_message(chat_id=chat_id, text=caption, parse_mode=ParseMode.HTML)
+        return False
+
+def start_streamlit_ui_if_needed():
+    """Start the streamlit UI as a background process if streamlit is installed and not already running."""
+    try:
+        # reuse logic similar to psychology_test (non-blocking)
+        import socket
+        def _is_running(port=8501):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    return s.connect_ex(("127.0.0.1", port)) == 0
+            except Exception:
+                return False
+        if _is_running():
+            logger.info("[blue]Streamlit UI already running on port 8501[/blue]")
+            return
+        streamlit_exe = shutil.which("streamlit")
+        if not streamlit_exe:
+            logger.warning("[yellow]Streamlit not found in PATH. Install it to enable web UI.[/yellow]")
+            return
+        ui_path = os.path.join(os.path.dirname(__file__), "streamlit_ui.py")
+        cmd = [streamlit_exe, "run", ui_path, "--server.port", "8501", "--server.headless", "true"]
+        logger.info("[blue]Starting Streamlit UI in background (port 8501)...[/blue]")
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=os.path.dirname(__file__), start_new_session=True)
+    except Exception as e:
+        logger.error(f"[red]Failed to start Streamlit UI: {e}[/red]")
+
+def register_handlers(dp):
+    """Register all bot handlers in organized groups"""
+    
+    # Command handlers
+    commands = [
+        ("start", handlers.start),
+        ("psychology_tests", handlers.psychology_tests),
+        ("my_profile", handlers.my_profile),
+        ("wallet", handlers.wallet),
+        ("admin", handlers.admin_panel)
+    ]
+    
+    for command, handler in commands:
+        dp.add_handler(CommandHandler(command, handler))
+
+    # Persistent keyboard handler
+    def handle_keyboard_buttons(update: Update, context: CallbackContext):
+        button_map = {
+            "📋 تست‌های روانشناسی": handlers.psychology_tests,
+            "🧠 پکیج‌های هوشمند": handlers.smart_packages,
+            "🧑‍💼 پروفایل من": handlers.my_profile,
+            "💰 کیف پول من": handlers.wallet,
+            "💬 جلسه هوشمند درمانی با هوش مصنوعی": handlers.smart_therapy_session
+        }
+        
+        handler = button_map.get(update.message.text)
+        if handler:
+            return handler(update, context)
+    
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_keyboard_buttons), group=0)
+    
+    # Callback query handlers
+    callback_handlers = [
+        # Main menu
+        ("^psychology_tests$", handlers.show_tests_cb),
+        ("^my_profile$", handlers.show_profile_cb),
+        ("^previous_test_results$", handlers.previous_test_results_cb),
+        ("^purchased_packages$", handlers.purchased_packages_callback),
+        ("^wallet_info$", handlers.wallet_info_callback),
+        ("^charge_wallet$", handlers.charge_wallet_callback),
+        ("^smart_packages$", handlers.smart_packages),
+        ("^smart_therapy$", handlers.smart_therapy_session),
+        ("^smart_pack_", handlers.smart_package_selected),
+        ("^back_to_home$", handlers.back_to_home_cb),
+        
+        # Package handlers (order matters)
+        ("^start_package_test_", handlers.start_package_test_callback),
+        ("^start_package_[^_]*$", handlers.start_package_callback),
+        ("^package_test_", handlers.package_test_selected),
+        ("^view_package_", handlers.view_package_callback),
+        
+        # Admin handlers
+        ("^admin_users$", handlers.admin_users_list),
+        (r"^admin_user_\d+$", handlers.admin_user_options),
+        (r"^admin_user_\d+_charge$", handlers.admin_charge_prompt),
+        (r"^admin_user_\d+_reduce$", handlers.admin_reduce_prompt),
+        
+        # Test handlers
+        ("^view_result_", handlers.view_result_callback),
+        (r"^[0-9]+$", handlers.test_selection),
+        (r"^start_test_\d+$", handlers.start_test_callback),
+    ]
+    
+    for pattern, handler in callback_handlers:
+        dp.add_handler(CallbackQueryHandler(handler, pattern=pattern), group=1)
+    
+    # Message handlers
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handlers.handle_answer), group=1)
+    dp.add_handler(MessageHandler(Filters.photo, handlers.handle_payment_screenshot), group=1)
+
 def main():
-    # Clear module cache to avoid duplicate handlers
+    # Clear module cache
     import sys
     for module in list(sys.modules.keys()):
         if module.startswith('handlers') and module != 'telegram_handlers':
             del sys.modules[module]
     
-    logger.info("[bold green]Starting Blue PTsychology Test Bot[/bold green]")
+    logger.info("[bold green]Starting Blue Psychology Test Bot[/bold green]")
     
-    # Start G4F server before initializing the bot
     start_g4f_server()
+
+    # NEW: start streamlit UI so operator can watch logs in browser
+    start_streamlit_ui_if_needed()
     
-    TOKEN = "7810952815:AAETk8FaU6rtq8_ICAJuwLGLJA8ZcMILrMM"
-    db.init_db()  # <-- initialize database tables
+    TOKEN = "8330412252:AAErsNiTYTs9bXlaMZEGIElNh0ytDO3U-Ds"
+    db.init_db()
     logger.info("[bold blue]Database initialized[/bold blue]")
     
     updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
+    register_handlers(updater.dispatcher)
 
-    # --- Command handlers ---
-    dp.add_handler(CommandHandler("start", handlers.start))
-    dp.add_handler(CommandHandler("psychology_tests", handlers.psychology_tests))
-    dp.add_handler(CommandHandler("my_profile", handlers.my_profile))
-    dp.add_handler(CommandHandler("wallet", handlers.wallet))
-    dp.add_handler(CommandHandler("admin", handlers.admin_panel))
-
-    # --- Persistent keyboard (text) handlers ---
-    # Create a single message handler for all persistent keyboard buttons
-    def handle_keyboard_buttons(update: Update, context: CallbackContext):
-        text = update.message.text
-        if text == "📋 تست‌های روانشناسی":
-            return handlers.psychology_tests(update, context)
-        elif text == "🧠 پکیج‌های هوشمند":
-            return handlers.smart_packages(update, context)
-        elif text == "🧑‍💼 پروفایل من":
-            return handlers.my_profile(update, context)
-        elif text == "💰 کیف پول من":
-            return handlers.wallet(update, context)
-        elif text == "💬 جلسه هوشمند درمانی با هوش مصنوعی":
-            return handlers.smart_therapy_session(update, context)
-    
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_keyboard_buttons), group=0)
-
-    # Debug callback handler to log all callback queries
-    def debug_callback_handler(update: Update, context: CallbackContext):
-        query = update.callback_query
-        logger.info(f"[DEBUG] Callback received: {query.data} from user {query.from_user.id}")
-        return  # Let other handlers process it
-    
-    # Add debug handler first (will be called for all callbacks)
-    dp.add_handler(CallbackQueryHandler(debug_callback_handler), group=0)
-    
-    # --- Inline keyboard (callback) handlers for main menu ---
-    dp.add_handler(CallbackQueryHandler(handlers.show_tests_cb, pattern="^psychology_tests$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.show_profile_cb, pattern="^my_profile$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.previous_test_results_cb, pattern="^previous_test_results$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.purchased_packages_callback, pattern="^purchased_packages$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.wallet_info_callback, pattern="^wallet_info$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.charge_wallet_callback, pattern="^charge_wallet$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.smart_packages, pattern="^smart_packages$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.smart_therapy_session, pattern="^smart_therapy$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.smart_package_selected, pattern="^smart_pack_"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.back_to_home_cb, pattern="^back_to_home$"), group=1)
-    
-    # Package-related callback handlers - order matters!
-    dp.add_handler(CallbackQueryHandler(handlers.start_package_test_callback, pattern="^start_package_test_"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.start_package_callback, pattern="^start_package_[^_]*$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.package_test_selected, pattern="^package_test_"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.view_package_callback, pattern="^view_package_"), group=1)
-
-    # Admin handlers
-    dp.add_handler(CallbackQueryHandler(handlers.admin_users_list, pattern="^admin_users$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.admin_user_options, pattern=r"^admin_user_\d+$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.admin_charge_prompt, pattern=r"^admin_user_\d+_charge$"), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.admin_reduce_prompt, pattern=r"^admin_user_\d+_reduce$"), group=1)
-    
-    # Test handlers
-    dp.add_handler(CallbackQueryHandler(handlers.view_result_callback, pattern='^view_result_'), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.test_selection, pattern=r'^[0-9]+$'), group=1)
-    dp.add_handler(CallbackQueryHandler(handlers.start_test_callback, pattern=r"^start_test_\d+$"), group=1)
-
-    # Add text message handler for the conversation flow (name/age/answers)
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handlers.handle_answer), group=1)
-    
-    # Handle photo uploads (for payment screenshots)
-    dp.add_handler(MessageHandler(Filters.photo, handlers.handle_payment_screenshot), group=1)
-    
-    # register bot commands - updated list
+    # Set bot commands
     updater.bot.set_my_commands([
         BotCommand("start", "🚀 شروع ربات و انتخاب تست"),
         BotCommand("psychology_tests", "📋 نمایش تست‌های روانشناسی"),
@@ -445,7 +408,7 @@ def main():
         BotCommand("admin", "🛠️ پنل مدیریت")
     ])
 
-    logger.info("[bold green]Bot is now running. Press Ctrl+C to stop.[bold green]")
+    logger.info("[bold green]Bot is now running. Press Ctrl+C to stop.[/bold green]")
     updater.start_polling()
     updater.idle()
 
