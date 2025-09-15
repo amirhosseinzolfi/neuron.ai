@@ -8,88 +8,88 @@ LOG_PATH = BASE_DIR / "logs" / "blue_ai_logs.jsonl"
 CONV_PATH = BASE_DIR / "conversation-history.json"
 RESULTS_PATH = BASE_DIR / "test-result.json"
 
-# --- simple helper to load conversation messages (standardized format) ---
-def load_conversation(path: Path):
+REFRESH = 3  # seconds
+
+st.set_page_config(page_title="Blue Psychology — Live Logs", layout="wide")
+st.title("Blue Psychology — Live Debug UI")
+st.markdown("Use this page to inspect structured AI turns, conversation history and saved test results.")
+
+def read_last_jsonl(path: Path, limit: int = 200):
     if not path.exists():
         return []
+    lines = []
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            file_size = fh.tell()
+            block_size = 4096
+            data = b""
+            pos = max(0, file_size - block_size)
+            while len(lines) < limit and pos >= 0:
+                fh.seek(pos)
+                chunk = fh.read(min(block_size, file_size - pos))
+                data = chunk + data
+                lines = data.splitlines()
+                if pos == 0:
+                    break
+                pos = max(0, pos - block_size)
+            # decode last `limit` lines
+            out_lines = []
+            for raw in lines[-limit:]:
+                try:
+                    out_lines.append(json.loads(raw.decode("utf-8")))
+                except Exception:
+                    try:
+                        out_lines.append(json.loads(raw))
+                    except Exception:
+                        out_lines.append({"raw": raw.decode("utf-8", errors="replace")})
+            return out_lines
+    except Exception as e:
+        return [{"error": str(e)}]
+
+def read_json_file(path: Path):
+    if not path.exists():
+        return None
     try:
         with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # Expect standardized messages (dicts with id, role, ts, content)
-            return data if isinstance(data, list) else []
-    except Exception:
-        return []
+            return json.load(f)
+    except Exception as e:
+        return {"error": str(e)}
 
-def last_n_messages(conv, n=12):
-    out = []
-    for m in conv[-n:]:
-        ts = m.get("ts") if isinstance(m, dict) else None
-        try:
-            t = datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S") if ts else ""
-        except Exception:
-            t = str(ts or "")
-        out.append({
-            "id": (m.get("id") if isinstance(m, dict) else "")[:8],
-            "role": m.get("role") if isinstance(m, dict) else "",
-            "time": t,
-            "content": (m.get("content") if isinstance(m, dict) else str(m))[:220]
-        })
-    return out
+# Auto-refresh controls
+st.sidebar.header("Live settings")
+refresh = st.sidebar.number_input("Auto-refresh (seconds)", min_value=1, max_value=30, value=REFRESH)
+max_lines = st.sidebar.number_input("Max log lines", min_value=10, max_value=2000, value=200)
 
-st.set_page_config(page_title="Blue Psychology — Conversation", layout="wide")
-st.title("Blue Psychology — Conversation Snapshot")
-
-col1, col2 = st.columns([3, 1])
+# Layout panels
+col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.subheader("Recent Messages")
-    conv = load_conversation(CONV_PATH)
-    if not conv:
-        st.info("No conversation-history.json found. Run a test to generate messages.")
+    st.subheader("Recent Structured Logs")
+    logs = read_last_jsonl(LOG_PATH, limit=max_lines)
+    if logs:
+        # show a compact table of recent events
+        for ev in reversed(logs[-200:]):
+            ts = ev.get("ts") or ev.get("timestamp") or time.time()
+            try:
+                ts_h = datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                ts_h = str(ts)
+            ev_type = ev.get("type", ev.get("logger", "log"))
+            with st.expander(f"{ts_h} — {ev_type}", expanded=False):
+                st.json(ev)
     else:
-        st.metric("Total messages", len(conv))
-        rows = last_n_messages(conv, n=12)
-        st.table(rows)
+        st.info("No logs found yet. Run the app to generate logs.")
 
 with col2:
-    st.subheader("Summary")
-    # load summary from last JSONL final_summary or from conversation file (simple heuristic)
-    summary = ""
-    # try to read last structured event of type 'ai_turn' or 'final_summary' from logs
-    if LOG_PATH.exists():
-        try:
-            with open(LOG_PATH, "r", encoding="utf-8") as fh:
-                lines = fh.read().splitlines()
-                for raw in reversed(lines[-400:]):
-                    try:
-                        ev = json.loads(raw)
-                        if ev.get("type") in ("final_summary", "ai_turn"):
-                            summary = ev.get("conversation_summary") or ev.get("response") or ev.get("response_snippet") or ""
-                            if summary:
-                                break
-                    except Exception:
-                        continue
-        except Exception:
-            summary = ""
-    if not summary:
-        # fallback: try to get short summary from conversation file
-        try:
-            if conv and isinstance(conv, list):
-                # look for a message with context 'system_intro' or where role == 'assistant' and content length < 400
-                for m in reversed(conv):
-                    if isinstance(m, dict) and (m.get("role") == "assistant") and len((m.get("content") or "")) < 600:
-                        summary = m.get("content")[:800]
-                        break
-        except Exception:
-            summary = ""
-
-    if summary:
-        st.write(summary)
+    st.subheader("Conversation Snapshot")
+    conv = read_json_file(CONV_PATH)
+    if conv:
+        st.write(f"Messages: {len(conv)}")
+        st.json(conv[-40:])  # last 40 messages
     else:
-        st.info("No conversation summary found yet.")
+        st.info("No conversation-history.json found yet.")
 
-st.sidebar.header("Live settings")
-st.sidebar.markdown("Auto-refresh by reloading the page. Use the main app to run tests and generate logs.")
     st.subheader("Saved Test Results (test-result.json)")
     results = read_json_file(RESULTS_PATH)
     if results:

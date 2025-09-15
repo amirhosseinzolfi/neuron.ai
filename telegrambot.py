@@ -182,49 +182,92 @@ def format_md_for_telegram(md_text: str) -> list:
 
 def format_caption_for_telegram(test_name: str, summary_content: str) -> str:
     """Format test result as a caption for an image with Telegram's caption length limits."""
-    MAX_CAPTION_LENGTH = 2000
+    # Use shared UI constant for caption limits
+    MAX_CAPTION_LENGTH = getattr(ui, "MAX_CAPTION_LENGTH", 1000)
     header = f"<b>🎯 نتایج تست {test_name}</b>\n\n"
-    
+
+    # Reuse the first chunk as the main caption content (already HTML-safe)
     message_chunks = format_md_for_telegram(summary_content)
     main_content = message_chunks[0] if message_chunks else summary_content
-    
-    available_space = MAX_CAPTION_LENGTH - len(header) - 50
+
+    footer = ""
+    # If we have more content than fits, hint to user that full report is in the PDF
+    if len(message_chunks) > 1 or len(summary_content) > (MAX_CAPTION_LENGTH - len(header) - 50):
+        footer = "\n\n📄 نتایج کامل در فایل PDF ارسال شده موجود است."
+
+    # Reserve some space for header/footer and safety margin
+    available_space = MAX_CAPTION_LENGTH - len(header) - len(footer) - 8
     if len(main_content) > available_space:
         main_content = main_content[:available_space - 3] + "..."
-    
-    footer = ""
-    if len(message_chunks) > 1 or len(summary_content) > available_space:
-        footer = "\n\n📄 نتایج کامل در فایل PDF ارسال شده موجود است."
-    
+
     full_caption = header + main_content + footer
-    
+    # Final safety clamp
     if len(full_caption) > MAX_CAPTION_LENGTH:
-        content_limit = MAX_CAPTION_LENGTH - len(header) - len(footer) - 10
-        full_caption = header + main_content[:content_limit] + "..." + footer
-    
+        full_caption = full_caption[:MAX_CAPTION_LENGTH - 3] + "..."
+
     return full_caption
 
 def send_styled_test_result(update: Update, context: CallbackContext, test_name: str, summary_content: str):
-    """Send formatted test result to user with proper styling using HTML."""
+    """Send formatted test result with separate image, analysis and PDF."""
     try:
-        header = ui.RESULT_HTML_HEADER.format(test_name=test_name)
-        message_chunks = format_md_for_telegram(summary_content)
-        reply_method = update.message.reply_text if update.message else update.callback_query.message.reply_text
-
+        # Determine chat id
+        chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
+        
+        # Get paths and required data from context
+        image_path = context.user_data.get("result_image")
+        pdf_path = context.user_data.get("result_pdf")
+        analysis_text = context.user_data.get("result_caption")  # This is the analyzed/optimized version
+        
+        # If no analysis text available, don't show raw summary in UI
+        if not analysis_text:
+            logger.warning("No analysis text available - generating default analysis")
+            analysis_text = "⚠️ خلاصه تحلیل در حال آماده‌سازی است..."
+        
+        # 1. First send the AI-generated personality image with simple caption
+        if image_path and os.path.exists(image_path):
+            send_media_with_caption(
+                context, 
+                chat_id,
+                image_path,
+                ui.IMAGE_GENERATED_CAPTION,
+                media_type="photo"
+            )
+            time.sleep(0.7)
+        
+        # 2. Send the ANALYSIS text (not raw summary) in chunks
+        header = ui.ANALYSIS_HEADER.format(test_name=test_name)
+        message_chunks = format_md_for_telegram(analysis_text)  # Use analysis instead of summary
         for i, chunk in enumerate(message_chunks):
             full_message = (header + chunk) if i == 0 else chunk
-            reply_method(full_message, parse_mode=ParseMode.HTML)
+            context.bot.send_message(
+                chat_id=chat_id,
+                text=full_message,
+                parse_mode=ParseMode.HTML
+            )
             time.sleep(0.7)
-            
+        
+        # 3. Finally send PDF (which contains the full raw summary)
+        if pdf_path and os.path.exists(pdf_path):
+            send_media_with_caption(
+                context,
+                chat_id,
+                pdf_path,
+                ui.PDF_REPORT_CAPTION.format(test_name=test_name),
+                media_type="document"
+            )
+        
         return True
+
     except Exception as e:
-        logger.error(f"[bold red]Error sending formatted HTML results: {e}[/bold red]")
-        fallback_reply_method = update.message.reply_text if update.message else update.callback_query.message.reply_text
+        logger.error(f"[bold red]Error sending formatted results: {e}[/bold red]")
         try:
-            fallback_reply_method(
-                ui.RESULT_FALLBACK_TEXT.format(
+            # Even in error case, prefer showing analysis if available
+            fallback_text = context.user_data.get("result_caption") or summary_content
+            context.bot.send_message(
+                chat_id=chat_id,
+                text=ui.RESULT_FALLBACK_TEXT.format(
                     test_name=test_name,
-                    summary=summary_content[:4000] + ("..." if len(summary_content) > 4000 else "")
+                    summary=fallback_text[:4000] + ("..." if len(fallback_text) > 4000 else "")
                 )
             )
         except Exception as fallback_e:
@@ -317,27 +360,27 @@ def register_handlers(dp):
         ("psychology_tests", handlers.psychology_tests),
         ("my_profile", handlers.my_profile),
         ("wallet", handlers.wallet),
-        ("admin", handlers.admin_panel)
+    ("admin", handlers.admin_panel),
+    ("end_chat", handlers.end_smart_chat)
     ]
     
     for command, handler in commands:
         dp.add_handler(CommandHandler(command, handler))
 
-    # Persistent keyboard handler
-    def handle_keyboard_buttons(update: Update, context: CallbackContext):
-        button_map = {
-            "📋 تست‌های روانشناسی": handlers.psychology_tests,
-            "🧠 پکیج‌های هوشمند": handlers.smart_packages,
-            "🧑‍💼 پروفایل من": handlers.my_profile,
-            "💰 کیف پول من": handlers.wallet,
-            "💬 جلسه هوشمند درمانی با هوش مصنوعی": handlers.smart_therapy_session
-        }
-        
-        handler = button_map.get(update.message.text)
-        if handler:
-            return handler(update, context)
-    
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_keyboard_buttons), group=0)
+    # Persistent keyboard handler (uses handler from handlers module)
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handlers.handle_keyboard_buttons), group=0)
+
+    # When any inline callback button is pressed we should disable smart chat for that user
+    def _callback_preprocessor(update: Update, context: CallbackContext):
+        try:
+            user_id = update.callback_query.message.chat_id
+            # mark smart chat inactive to avoid accidental forwarding
+            context.user_data["smart_chat_active"] = False
+        except Exception:
+            pass
+
+    # Register the preprocessor for callbacks (highest priority)
+    dp.add_handler(CallbackQueryHandler(_callback_preprocessor), group=0)
     
     # Callback query handlers
     callback_handlers = [
@@ -369,6 +412,8 @@ def register_handlers(dp):
         ("^view_result_", handlers.view_result_callback),
         (r"^[0-9]+$", handlers.test_selection),
         (r"^start_test_\d+$", handlers.start_test_callback),
+        ("^show_profile_update_status$", handlers.show_profile_update_status),
+        ("^show_psychological_profile$", handlers.show_psychological_profile),
     ]
     
     for pattern, handler in callback_handlers:
@@ -386,6 +431,30 @@ def main():
             del sys.modules[module]
     
     logger.info("[bold green]Starting Blue Psychology Test Bot[/bold green]")
+    
+    # Test smart chat initialization at startup
+    try:
+        console.print(Panel("[bold blue]🧪 Testing Smart Chat Components...[/bold blue]", border_style="blue"))
+        
+        # Test imports
+        from smart_chat import get_memory, get_chat_agent
+        console.log("[green]✅ Smart chat imports successful[/green]")
+        
+        # Test memory initialization
+        console.log("[blue]💾 Testing memory initialization...[/blue]")
+        test_memory = get_memory()
+        console.log("[green]✅ Memory initialization successful[/green]")
+        
+        # Test agent creation
+        console.log("[blue]🤖 Testing agent creation...[/blue]")
+        test_agent = get_chat_agent(test_memory)
+        console.log("[green]✅ Agent creation successful[/green]")
+        
+        console.print(Panel("[bold green]✅ Smart Chat Components Test Passed![/bold green]", border_style="green"))
+        
+    except Exception as e:
+        console.print(Panel(f"[bold red]❌ Smart Chat Test Failed: {e}[/bold red]", border_style="red"))
+        logger.error(f"Smart chat startup test failed: {e}", exc_info=True)
     
     start_g4f_server()
 
@@ -405,7 +474,8 @@ def main():
         BotCommand("psychology_tests", "📋 نمایش تست‌های روانشناسی"),
         BotCommand("my_profile", "🕵️ مشاهده نتایج تست‌های قبلی"),
         BotCommand("wallet", "💰 کیف پول من"),
-        BotCommand("admin", "🛠️ پنل مدیریت")
+        BotCommand("admin", "🛠️ پنل مدیریت"),
+        BotCommand("end_chat", "🔚 پایان جلسه هوشمند")
     ])
 
     logger.info("[bold green]Bot is now running. Press Ctrl+C to stop.[/bold green]")

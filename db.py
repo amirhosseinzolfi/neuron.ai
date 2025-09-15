@@ -24,12 +24,25 @@ def init_db():
     # ensure columns for Telegram metadata
     cur.execute("PRAGMA table_info(users)")
     cols = [col[1] for col in cur.fetchall()]
+    
+    # Add existing column checks
     if "username" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN username TEXT")
     if "first_name" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
     if "last_name" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
+        
+    # Add new column checks
+    if "progress" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN progress INTEGER DEFAULT 0")
+    if "information" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN information TEXT")
+    if "image" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN image TEXT")  # Store image file path
+    if "stars" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN stars INTEGER DEFAULT 0")
+
     # create payment_screenshots table
     cur.execute("CREATE TABLE IF NOT EXISTS payment_screenshots ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -50,6 +63,9 @@ def init_db():
     cols = [col[1] for col in cur.fetchall()]
     if "pdf_path" not in cols:
         cur.execute("ALTER TABLE test_results ADD COLUMN pdf_path TEXT")
+    # NEW: ensure final_analyze column exists for storing concise analysis/caption
+    if "final_analyze" not in cols:
+        cur.execute("ALTER TABLE test_results ADD COLUMN final_analyze TEXT")
     
     # Create packages tables
     cur.execute("""
@@ -116,12 +132,13 @@ def save_user(chat_id: int, username: str, first_name: str, last_name: str):
     conn.commit()
     conn.close()
 
-def save_test_result(chat_id: int, test_name: str, result_text: str, pdf_path: str):
+def save_test_result(chat_id: int, test_name: str, result_text: str, pdf_path: str, final_analyze: str = None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO test_results (chat_id, test_name, result_text, pdf_path, timestamp) VALUES (?, ?, ?, ?, ?)",
-        (chat_id, test_name, result_text, pdf_path, time.time())
+        # include final_analyze column in insert; keep backward-compatible by using named columns
+        "INSERT INTO test_results (chat_id, test_name, result_text, pdf_path, final_analyze, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+        (chat_id, test_name, result_text, pdf_path, final_analyze, time.time())
     )
     conn.commit()
     conn.close()
@@ -147,10 +164,11 @@ def get_user_tests(chat_id: int):
     return rows
 
 def get_test_result(record_id: int):
-    """Return dict with test_name, result_text and pdf_path for a given record id."""
+    """Return dict with test_name, result_text, pdf_path and final_analyze for a given record id."""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT test_name, result_text, pdf_path FROM test_results WHERE id = ?', (record_id,))
+    # include final_analyze in select
+    cur.execute('SELECT test_name, result_text, pdf_path, final_analyze FROM test_results WHERE id = ?', (record_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -158,7 +176,8 @@ def get_test_result(record_id: int):
     return {
         'test_name': row['test_name'],
         'result_text': row['result_text'],
-        'pdf_path': row['pdf_path']
+        'pdf_path': row['pdf_path'],
+        'final_analyze': row['final_analyze']
     }
 
 # Package-related functions
@@ -270,7 +289,10 @@ def get_user(chat_id: int):
     """Return user data for a given chat_id."""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('SELECT chat_id, balance, username, first_name, last_name FROM users WHERE chat_id = ?', (chat_id,))
+    cur.execute('''
+        SELECT chat_id, balance, username, first_name, last_name,
+               progress, information, image, stars 
+        FROM users WHERE chat_id = ?''', (chat_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -280,8 +302,34 @@ def get_user(chat_id: int):
         'balance': row['balance'],
         'username': row['username'],
         'first_name': row['first_name'],
-        'last_name': row['last_name']
+        'last_name': row['last_name'],
+        'progress': row['progress'],
+        'information': row['information'],
+        'image': row['image'],
+        'stars': row['stars']
     }
+
+def update_user_profile(chat_id: int, **kwargs):
+    """Update user profile fields."""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    valid_fields = {'progress', 'information', 'image', 'stars'}
+    updates = {k: v for k, v in kwargs.items() if k in valid_fields}
+    
+    if updates:
+        set_clause = ', '.join(f'{k} = ?' for k in updates.keys())
+        values = list(updates.values()) + [chat_id]
+        
+        cur.execute(f'''
+            UPDATE users 
+            SET {set_clause}
+            WHERE chat_id = ?
+        ''', values)
+        
+        conn.commit()
+    conn.close()
+    return bool(updates)
 
 def get_test_result_by_test_id(chat_id: int, test_id: int):
     """Return the latest test result for a given user and test id."""
@@ -289,7 +337,8 @@ def get_test_result_by_test_id(chat_id: int, test_id: int):
     cur = conn.cursor()
     import psychology_test as pt
     test_name = pt.all_tests["tests"][test_id - 1]["test_name"]
-    cur.execute('SELECT id, test_name, result_text, pdf_path FROM test_results WHERE chat_id = ? AND test_name = ? ORDER BY timestamp DESC LIMIT 1', (chat_id, test_name))
+    # include final_analyze in select
+    cur.execute('SELECT id, test_name, result_text, pdf_path, final_analyze FROM test_results WHERE chat_id = ? AND test_name = ? ORDER BY timestamp DESC LIMIT 1', (chat_id, test_name))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -298,15 +347,18 @@ def get_test_result_by_test_id(chat_id: int, test_id: int):
         'id': row['id'],
         'test_name': row['test_name'],
         'result_text': row['result_text'],
-        'pdf_path': row['pdf_path']
+        'pdf_path': row['pdf_path'],
+        'final_analyze': row['final_analyze']
     }
 
 def get_all_users():
     """Return list of all users ever seen, including metadata and balance."""
     conn = get_conn()
     cur = conn.cursor()
-    # pull existing users
-    cur.execute('SELECT chat_id, balance, username, first_name, last_name FROM users')
+    cur.execute('''
+        SELECT chat_id, balance, username, first_name, last_name,
+               progress, information, image, stars 
+        FROM users''')
     rows = cur.fetchall()
     user_map = {}
     for row in rows:
@@ -315,7 +367,11 @@ def get_all_users():
             'balance': row['balance'],
             'username': row['username'],
             'first_name': row['first_name'],
-            'last_name': row['last_name']
+            'last_name': row['last_name'],
+            'progress': row['progress'],
+            'information': row['information'],
+            'image': row['image'],
+            'stars': row['stars']
         }
     # include chat_ids from test_results
     cur.execute('SELECT DISTINCT chat_id FROM test_results')

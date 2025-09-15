@@ -19,11 +19,13 @@ from rich.panel import Panel
 from rich.table import Table
 
 import psychology_test as pt
+import ai_utils
 import db
 import packages
 import package_ai
 from pdf_utils import generate_pdf
 import telegram_ui as ui
+from smart_chat import get_chat_agent, get_memory, chat as smart_chat_logic
 from utils import chat_states, admin_only, escape_markdown_v2, ADMINS
 
 # Console for rich logging
@@ -33,6 +35,34 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
+
+# Global smart chat agent
+SMART_CHAT_AGENT = None
+
+def get_smart_chat_agent():
+    """Initializes and returns the smart chat agent with detailed logging."""
+    global SMART_CHAT_AGENT
+    
+    console.log("[bold blue]🔧 Getting Smart Chat Agent...[/bold blue]")
+    
+    if SMART_CHAT_AGENT is None:
+        console.log("[yellow]⚠️ Agent not initialized, creating new instance...[/yellow]")
+        try:
+            console.log("[blue]💾 Initializing memory...[/blue]")
+            memory = get_memory()
+            
+            console.log("[blue]🤖 Creating chat agent...[/blue]")
+            SMART_CHAT_AGENT = get_chat_agent(memory)
+            
+            console.log("[bold green]✅ Smart Chat Agent created and cached![/bold green]")
+        except Exception as e:
+            console.log(f"[bold red]❌ Failed to create Smart Chat Agent: {e}[/bold red]")
+            logger.error(f"Smart chat agent creation failed: {e}", exc_info=True)
+            raise
+    else:
+        console.log("[green]✅ Using cached Smart Chat Agent[/green]")
+    
+    return SMART_CHAT_AGENT
 
 def send_formatted_text(update: Update, text: str, reply_markup=None):
     """Formats markdown text to HTML and sends it, handling message editing."""
@@ -192,7 +222,7 @@ def start(update: Update, context: CallbackContext):
     # Persistent reply keyboard
     reply_keyboard = [
         [KeyboardButton("📋 تست‌های روانشناسی"), KeyboardButton("🧠 پکیج‌های هوشمند")],
-        [KeyboardButton("🧑‍💼 پروفایل من"), KeyboardButton("💬 جلسه هوشمند درمانی با هوش مصنوعی")]
+        [KeyboardButton("🧑‍💼 پروفایل من"), KeyboardButton("💬 جلسه هوشمند")]
     ]
     persistent_markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
@@ -201,7 +231,7 @@ def start(update: Update, context: CallbackContext):
         [InlineKeyboardButton("📋 تست‌های روانشناسی", callback_data="psychology_tests"),
          InlineKeyboardButton("🧠 پکیج‌های هوشمند", callback_data="smart_packages")],
         [InlineKeyboardButton("🕵️ نتایج تست‌های قبلی", callback_data="my_profile"),
-         InlineKeyboardButton("💬 جلسه هوشمند درمانی با هوش مصنوعی", callback_data="smart_therapy")]
+         InlineKeyboardButton("💬 جلسه هوشمند", callback_data="smart_therapy")]
     ]
     inline_markup = InlineKeyboardMarkup(inline_kb)
 
@@ -218,6 +248,54 @@ def start(update: Update, context: CallbackContext):
     else:
         # From callback
         safe_edit_message(update, context, welcome_text, inline_markup, gif_path)
+
+def handle_keyboard_buttons(update: Update, context: CallbackContext):
+    """Handle persistent reply keyboard buttons and non-button messages.
+
+    Behavior:
+    - If user presses the Smart Chat keyboard button, start/continue smart chat.
+    - If user presses any other keyboard button, stop smart chat.
+    - If user sends plain text that is NOT a keyboard button and is not currently
+      in a psychology test flow, automatically start smart chat and forward the
+      message to the smart chat handler.
+    - Prevent duplicate processing by setting a short-lived skip flag that
+      `handle_answer` will honor.
+    """
+    button_map = {
+        "📋 تست‌های روانشناسی": psychology_tests,
+        "🧠 پکیج‌های هوشمند": smart_packages,
+        "🧑‍💼 پروفایل من": my_profile,
+        "💬 جلسه هوشمند": smart_therapy_session,
+        "💰 کیف پول من": wallet,
+    }
+
+    text = update.message.text if update.message else ""
+    handler = button_map.get(text)
+
+    # Mark to skip the lower-priority text handler to avoid duplicate processing
+    context.user_data["_skip_handle_answer"] = True
+
+    if handler:
+        # Stop smart chat for all buttons except the smart chat button
+        if text != "💬 جلسه هوشمند":
+            context.user_data["smart_chat_active"] = False
+        else:
+            context.user_data["smart_chat_active"] = True
+
+        return handler(update, context)
+
+    # Not a menu button. If user is in a psychology test flow, do nothing here
+    cid = update.message.chat_id
+    info = chat_states.get(cid)
+    if info and info.get("stage") in ["ask_name_age", "ask_user_info", "answering"]:
+        # Allow normal test flow handlers to operate
+        # clear skip flag so handle_answer can run for test flow
+        context.user_data.pop("_skip_handle_answer", None)
+        return None
+
+    # Otherwise automatically start smart chat and forward message
+    context.user_data["smart_chat_active"] = True
+    return handle_smart_chat_message(update, context)
 
 def psychology_tests(update: Update, context: CallbackContext):
     """Show available psychology tests"""
@@ -243,8 +321,106 @@ def psychology_tests(update: Update, context: CallbackContext):
     safe_edit_message(update, context, caption_text, InlineKeyboardMarkup(keyboard), image_path)
 
 def smart_therapy_session(update: Update, context: CallbackContext):
-    """Placeholder for future smart therapy session feature"""
-    send_formatted_text(update, ui.SMART_THERAPY_COMING_SOON)
+    """Handles the smart therapy session with a friendly greeting and logging."""
+    console.log("[bold blue]🎯 Smart Therapy Session Handler Called[/bold blue]")
+    
+    if not context.user_data.get("smart_chat_active"):
+        console.log("[green]🚀 Activating smart chat for user...[/green]")
+        context.user_data["smart_chat_active"] = True
+        
+        # Creative and friendly greeting message
+        greeting_message = """🧠✨ سلام! به جلسه هوشمند خوش آمدید! ✨🧠
+
+من نورون هستم، دستیار هوشمند شما! 🤖💙
+آماده‌ام تا در یک گفتگوی دوستانه و آرامش‌بخش، شما را همراهی کنم.
+
+🌟 در این جلسه می‌توانید:
+• هر چیزی که در ذهنتان است را بگویید
+• سوالاتتان را مطرح کنید  
+• از تجربیاتتان بگویید
+• راهنمایی و پشتیبانی دریافت کنید
+
+💬 فقط کافیه شروع کنید... من اینجام تا گوش کنم و کمکتان کنم!
+
+برای خروج از جلسه، دستور /end_chat را ارسال کنید."""
+        
+        console.log("[blue]📤 Sending greeting message...[/blue]")
+        send_formatted_text(update, greeting_message)
+        console.log("[bold green]✅ Smart therapy session started successfully![/bold green]")
+    else:
+        console.log("[yellow]ℹ️ Smart chat already active for this user[/yellow]")
+
+def handle_smart_chat_message(update: Update, context: CallbackContext):
+    """Handles messages during a smart chat session with detailed logging."""
+    console.log("[bold cyan]💬 Smart Chat Message Handler Called[/bold cyan]")
+    
+    if not context.user_data.get("smart_chat_active"):
+        console.log("[yellow]⚠️ Smart chat not active, returning[/yellow]")
+        return  # Not in smart chat mode, do nothing.
+
+    user_id = str(update.effective_chat.id)
+    message_text = update.message.text
+    
+    # Create info panel
+    console.print(Panel(
+        f"[cyan]User ID:[/cyan] {user_id}\n"
+        f"[cyan]Message:[/cyan] {message_text[:100]}{'...' if len(message_text) > 100 else ''}",
+        title="📨 Smart Chat Message",
+        border_style="cyan"
+    ))
+
+    # Show waiting message while processing
+    console.log("[blue]📤 Sending waiting message to user...[/blue]")
+    waiting_message = update.message.reply_text("🧠 نورون در حال فکر کردن ... 💭")
+    
+    try:
+        console.log("[yellow]🤖 Getting smart chat agent...[/yellow]")
+        agent = get_smart_chat_agent()
+        
+        console.log("[yellow]🚀 Calling smart chat logic...[/yellow]")
+        response = smart_chat_logic(agent, user_id, message_text)
+        
+        console.log(f"[green]✅ Received response ({len(response)} chars)[/green]")
+        console.log(f"[dim]Response preview: {response[:100]}{'...' if len(response) > 100 else ''}[/dim]")
+        
+        # Delete waiting message and send response
+        console.log("[blue]🗑️ Deleting waiting message...[/blue]")
+        waiting_message.delete()
+        
+        console.log("[blue]📤 Sending response to user...[/blue]")
+        update.message.reply_text(response)
+        
+        console.log("[bold green]✅ Smart chat message handled successfully![/bold green]")
+        
+    except Exception as e:
+        console.log(f"[bold red]❌ Error in smart chat message handler: {e}[/bold red]")
+        logger.error(f"Smart chat message handler error: {e}", exc_info=True)
+        
+        # Delete waiting message even if there's an error
+        try:
+            console.log("[blue]🗑️ Deleting waiting message after error...[/blue]")
+            waiting_message.delete()
+        except Exception as delete_error:
+            console.log(f"[red]❌ Failed to delete waiting message: {delete_error}[/red]")
+            
+        console.log("[blue]📤 Sending error message to user...[/blue]")
+        update.message.reply_text("متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+
+def end_smart_chat(update: Update, context: CallbackContext):
+    """Ends the smart chat session via command."""
+    if context.user_data.get("smart_chat_active"):
+        context.user_data["smart_chat_active"] = False
+        update.message.reply_text("جلسه گفتگوی هوشمند به پایان رسید. برای شروع مجدد، دکمه مربوطه را بزنید.")
+    else:
+        update.message.reply_text("در حال حاضر جلسه گفتگوی هوشمندی فعال نیست.")
+
+def end_smart_chat(update: Update, context: CallbackContext):
+    """Ends the smart chat session."""
+    if context.user_data.get("smart_chat_active"):
+        context.user_data["smart_chat_active"] = False
+        update.message.reply_text("جلسه گفتگوی هوشمند به پایان رسید. برای شروع مجدد، دکمه مربوطه را بزنید.")
+    else:
+        update.message.reply_text("در حال حاضر جلسه گفتگوی هوشمندی فعال نیست.")
 
 # Simple callbacks
 def show_tests_cb(update: Update, context: CallbackContext):
@@ -669,14 +845,36 @@ def my_profile(update: Update, context: CallbackContext):
     intro_text = get_formatted_text(ui.PROFILE_INTRO)
     
     keyboard = [
-        [InlineKeyboardButton("📚 نتایج تست‌های قبلی", callback_data="previous_test_results")],
-        [InlineKeyboardButton("🧠 پکیج‌های خریداری شده", callback_data="purchased_packages")],
-        [InlineKeyboardButton("💰 کیف پول من", callback_data="wallet_info")],
-        [InlineKeyboardButton("➕ شارژ کیف پول", callback_data="charge_wallet")],
+        [InlineKeyboardButton("👤 پروفایل روانشناسی کاربر", callback_data="show_psychological_profile")],
+        [InlineKeyboardButton("📚 نتایج تست‌های قبلی", callback_data="previous_test_results"),
+         InlineKeyboardButton("🧠 پکیج‌های خریداری شده", callback_data="purchased_packages")],
+        [InlineKeyboardButton("💰 کیف پول من", callback_data="wallet_info"),
+         InlineKeyboardButton("➕ شارژ کیف پول", callback_data="charge_wallet")],
         [InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")]
     ]
     
     safe_edit_message(update, context, intro_text, InlineKeyboardMarkup(keyboard))
+
+def show_psychological_profile(update: Update, context: CallbackContext):
+    """Show user's psychological profile information."""
+    query = update.callback_query
+    query.answer()
+    
+    user_id = query.message.chat_id
+    user_data = db.get_user(user_id)
+    
+    if not user_data or not user_data.get('information'):
+        profile_text = ui.NO_PSYCH_PROFILE
+    else:
+        profile_text = ui.PSYCH_PROFILE_TEMPLATE.format(
+            name=user_data.get('first_name', 'کاربر'),
+            progress=user_data.get('progress', 0),
+            stars=user_data.get('stars', 0),
+            information=user_data.get('information', '')
+        )
+    
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت به پروفایل", callback_data="my_profile")]]
+    safe_edit_message(update, context, profile_text, InlineKeyboardMarkup(keyboard))
 
 def previous_test_results(update: Update, context: CallbackContext):
     """Show all previous test results."""
@@ -693,7 +891,9 @@ def previous_test_results(update: Update, context: CallbackContext):
         [InlineKeyboardButton(f"📝 {row['test_name']}", callback_data=f"view_result_{row['id']}")]
         for row in tests
     ]
-    keyboard.append([InlineKeyboardButton("🔙 بازگشت", callback_data="my_profile")])
+    # added explicit back rows: back to profile and back to home
+    keyboard.append([InlineKeyboardButton("🔙 بازگشت به پروفایل", callback_data="my_profile")])
+    keyboard.append([InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")])
     
     safe_edit_message(update, context, ui.PREVIOUS_TESTS_TITLE, InlineKeyboardMarkup(keyboard))
 
@@ -836,22 +1036,37 @@ def view_result_callback(update: Update, context: CallbackContext):
     """Handle view result button click"""
     query = update.callback_query
     query.answer()
-    
+
     record_id = int(query.data.split("_")[-1])
     result = db.get_test_result(record_id)
-    
+
     if result:
-        from telegrambot import send_styled_test_result
-        send_styled_test_result(update, context, result['test_name'], result['result_text'])
-        
+        # Show stored final-analyze (concise personalized analysis) first (preferred)
+        final_analyze = result.get('final_analyze') or result.get('result_text') or ""
+        try:
+            # send_formatted_text will format markdown -> HTML and handle callbacks
+            send_formatted_text(update, final_analyze)
+        except Exception:
+            # fallback: plain text
+            try:
+                if update.callback_query:
+                    update.callback_query.message.reply_text(final_analyze)
+                else:
+                    update.message.reply_text(final_analyze)
+            except Exception:
+                pass
+
         pdf_path = result.get('pdf_path')
         if pdf_path and os.path.exists(pdf_path):
-            query.message.reply_document(
-                open(pdf_path, 'rb'),
-                filename=f"{result['test_name']}_result.pdf",
-                caption=ui.PDF_CAPTION
-            )
-        
+            try:
+                query.message.reply_document(
+                    open(pdf_path, 'rb'),
+                    filename=f"{result['test_name']}_result.pdf",
+                    caption=ui.PDF_CAPTION
+                )
+            except Exception as e:
+                logger.error(f"Failed to send PDF: {e}")
+
         keyboard = [[InlineKeyboardButton("🔙 بازگشت به نتایج", callback_data="previous_test_results")]]
         query.message.reply_text(
             "برای بازگشت به لیست نتایج دکمه زیر را لمس کنید:",
@@ -863,8 +1078,59 @@ def view_result_callback(update: Update, context: CallbackContext):
 def handle_answer(update: Update, context: CallbackContext):
     """Handle user text messages based on current state"""
     cid = update.effective_chat.id
+    text = update.message.text
+
+    # If a higher-priority handler already processed this message (keyboard handler), skip here
+    if context.user_data.get("_skip_handle_answer"):
+        # clear the skip flag and do nothing
+        context.user_data.pop("_skip_handle_answer", None)
+        return None
+
+    # Handle smart chat first if active
+    if context.user_data.get("smart_chat_active"):
+        console.log("[bold cyan]💬 Smart chat is active, processing message...[/bold cyan]")
+        user_id = str(cid)
+        
+        # Show waiting message while processing
+        console.log("[blue]📤 Sending waiting message...[/blue]")
+        waiting_message = update.message.reply_text("🧠 نورون در حال فکر کردن ... 💭")
+        
+        try:
+            console.log("[yellow]🤖 Getting smart chat agent...[/yellow]")
+            agent = get_smart_chat_agent()
+            
+            console.log(f"[yellow]🚀 Processing message for user {user_id}...[/yellow]")
+            response = smart_chat_logic(agent, user_id, text)
+            
+            console.log(f"[green]✅ Got response ({len(response)} chars)[/green]")
+            
+            # Delete waiting message and send response
+            console.log("[blue]🗑️ Deleting waiting message...[/blue]")
+            waiting_message.delete()
+            
+            console.log("[blue]📤 Sending response...[/blue]")
+            update.message.reply_text(response)
+            
+            console.log("[bold green]✅ Smart chat response sent successfully![/bold green]")
+            
+        except Exception as e:
+            console.log(f"[bold red]❌ Smart chat error: {e}[/bold red]")
+            logger.error(f"Smart chat error in handle_answer: {e}", exc_info=True)
+            
+            # Delete waiting message even if there's an error
+            try:
+                console.log("[blue]🗑️ Deleting waiting message after error...[/blue]")
+                waiting_message.delete()
+            except Exception as delete_error:
+                console.log(f"[red]❌ Failed to delete waiting message: {delete_error}[/red]")
+                
+            console.log("[blue]📤 Sending error message...[/blue]")
+            update.message.reply_text("متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+            
+        return  # End processing here
+
     info = chat_states.get(cid)
-    text = update.message.text.strip()
+    text = text.strip()
 
     # Check for admin-specific stages first
     if info and info.get("stage") == "admin_charge_amount":
@@ -949,13 +1215,6 @@ def handle_answer(update: Update, context: CallbackContext):
         except ImportError:
             pass
     
-    # Log conversation history
-    history_summary = info["state"].get("history_summary")
-    if history_summary:
-        console.log(f"[magenta]Conversation summary generated:[/magenta]\n{history_summary}")
-        kept = len(info["state"]["conversation_history"])
-        console.log(f"[magenta]History trimmed, kept last {kept} messages[/magenta]")
-    
     table = Table(title="Full Conversation History", show_header=True, header_style="bold magenta")
     table.add_column("Role", style="cyan", no_wrap=True)
     table.add_column("Message", style="white", overflow="fold")
@@ -991,13 +1250,24 @@ def handle_answer(update: Update, context: CallbackContext):
         if "chat_id" not in info["state"] or info["state"]["chat_id"] is None:
             info["state"]["chat_id"] = cid
 
-        result_data = {"summary": None, "error": None, "images": None, "pdf_path": None}
+        result_data = {"summary": None, "error": None, "images": [], "pdf_path": None}
         
         def generate_results_background():
             try:
+                # Generate full summary first
                 summary_content = pt.tele_summarize(info["state"])
                 result_data["summary"] = summary_content
-                
+
+                # Always generate concise analysis
+                try:
+                    caption = pt.analyze_final_result(info["state"], summary_content)
+                    result_data["caption"] = caption
+                except Exception as cap_e:
+                    console.log(f"[red]Caption generation error: {cap_e}[/red]")
+                    # Provide fallback caption
+                    result_data["caption"] = "تحلیل نهایی شخصیت شما در حال آماده‌سازی است..."
+
+                # Get test name
                 test_name = info.get("test_name")
                 if not test_name:
                     test_choice = info.get("test_choice")
@@ -1009,34 +1279,68 @@ def handle_answer(update: Update, context: CallbackContext):
                             test_name = "تست روانشناسی"
                     else:
                         test_name = "تست روانشناسی"
-                
+
+                # Always attempt image generation
                 try:
                     img_prompt = pt.generate_image_prompt(summary_content)
                     images = pt.generate_images_for_prompt(
-                        img_prompt, cid, "/tmp", model="midjourney", 
+                        img_prompt, cid, "/tmp", model="midjourney",
                         num_images=1, width=512, height=512
                     )
-                    result_data["images"] = images
+                    if images and len(images) > 0:
+                        result_data["images"] = images
+                    else:
+                        # Use default image if generation fails
+                        default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                        if os.path.exists(default_image):
+                            result_data["images"] = [default_image]
                 except Exception as img_e:
                     console.log(f"[red]Image generation error: {img_e}[/red]")
-                
+                    # Use default image on error
+                    default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                    if os.path.exists(default_image):
+                        result_data["images"] = [default_image]
+
+                # Always generate PDF
                 try:
                     safe_name = test_name.replace(" ", "_")
-                    pdf_path = f"/tmp/{safe_name}_result.pdf"
+                    pdf_path = f"/tmp/{safe_name}_result_{int(time.time())}.pdf"
                     generate_pdf(summary_content, info["name"], info["age"], test_name, pdf_path)
                     result_data["pdf_path"] = pdf_path
-                    
-                    save_user_data(update)
-                    db.save_test_result(cid, test_name, summary_content, pdf_path)
-                    console.log(f"[blue]Saved test result for user {cid}[/blue]")
                 except Exception as pdf_e:
                     console.log(f"[red]PDF generation error: {pdf_e}[/red]")
-                    result_data["error"] = str(pdf_e)
-                    
+                    # Create simple text PDF as fallback
+                    try:
+                        from fpdf import FPDF
+                        pdf = FPDF()
+                        pdf.add_page()
+                        pdf.add_font('Arial', '', '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf', uni=True)
+                        pdf.set_font('Arial', '', 12)
+                        pdf.multi_cell(0, 10, summary_content)
+                        fallback_pdf = f"/tmp/result_{int(time.time())}.pdf"
+                        pdf.output(fallback_pdf)
+                        result_data["pdf_path"] = fallback_pdf
+                    except Exception as fallback_e:
+                        console.log(f"[red]Fallback PDF creation failed: {fallback_e}[/red]")
+
+                # Save results to database
+                try:
+                    save_user_data(update)
+                    db.save_test_result(
+                        cid, 
+                        test_name, 
+                        summary_content, 
+                        result_data.get("pdf_path", ""),
+                        result_data.get("caption", "")
+                    )
+                    console.log(f"[blue]Saved test result for user {cid}[/blue]")
+                except Exception as db_e:
+                    console.log(f"[red]Database save error: {db_e}[/red]")
+
             except Exception as e:
                 console.log(f"[red]Error in background result generation: {e}[/red]")
                 result_data["error"] = str(e)
-        
+
         background_thread = threading.Thread(target=generate_results_background, daemon=True)
         background_thread.start()
         
@@ -1065,56 +1369,102 @@ def handle_answer(update: Update, context: CallbackContext):
             except Exception as e:
                 logger.error(f"Error deleting final waiting message: {e}")
         
-        # Send results
-        if result_data.get("error"):
-            update.message.reply_text(ui.ERROR_GENERATING_RESULT)
-        elif result_data.get("summary"):
-            summary_content = result_data["summary"]
+        # Send results in correct order (image -> analysis -> PDF)
+        try:
+            # Always set context data for unified sender
+            context.user_data["result_image"] = result_data["images"][0] if result_data.get("images") else None
+            context.user_data["result_pdf"] = result_data.get("pdf_path")
+            context.user_data["result_caption"] = result_data.get("caption")
+
+            # Use unified sender which will handle all components
+            from telegrambot import send_styled_test_result
             test_name = info.get("test_name", "تست روانشناسی")
-            
-            console.print(Panel(
-                f"[cyan]Final analysis for {info['name']}:[/cyan]\n[purple]{summary_content[:500]}...[/purple]",
-                title="Bot Sends (Test Summary)",
-                border_style="magenta",
-                expand=False
-            ))
-            
-            # Send image with caption or fallback to styled text
-            if result_data.get("images"):
-                try:
-                    from telegrambot import format_caption_for_telegram
-                    caption_text = format_caption_for_telegram(test_name, summary_content)
-                    
-                    with open(result_data["images"][0], "rb") as img_f:
+            success = send_styled_test_result(update, context, test_name, result_data.get("summary", ""))
+
+            if not success:
+                # On failure, try sending components individually
+                if context.user_data.get("result_image"):
+                    try:
                         update.message.reply_photo(
-                            photo=img_f,
-                            caption=caption_text,
-                            parse_mode=ParseMode.HTML
+                            photo=open(context.user_data["result_image"], 'rb'),
+                            caption=ui.IMAGE_GENERATED_CAPTION
                         )
-                except Exception as e:
-                    console.log(f"[red]Error sending image: {e}[/red]")
-                    from telegrambot import send_styled_test_result
-                    send_styled_test_result(update, context, test_name, summary_content)
-            else:
-                from telegrambot import send_styled_test_result
-                send_styled_test_result(update, context, test_name, summary_content)
-            
-            if result_data.get("pdf_path") and os.path.exists(result_data["pdf_path"]):
-                with open(result_data["pdf_path"], "rb") as pdf_f:
-                    update.message.reply_document(
-                        pdf_f,
-                        filename=f"{test_name}_result.pdf",
-                        caption=ui.PDF_CAPTION
-                    )
-        else:
-            update.message.reply_text("❌ خطا در تولید نتایج. لطفاً دوباره تلاش کنید.")
-            
+                    except Exception:
+                        pass
+                
+                if context.user_data.get("result_caption"):
+                    try:
+                        update.message.reply_text(context.user_data["result_caption"])
+                    except Exception:
+                        pass
+                
+                if context.user_data.get("result_pdf"):
+                    try:
+                        update.message.reply_document(
+                            document=open(context.user_data["result_pdf"], 'rb'),
+                            caption=ui.PDF_REPORT_CAPTION.format(test_name=test_name)
+                        )
+                    except Exception:
+                        pass
+
+        finally:
+            # Clean up context data
+            context.user_data.pop("result_image", None)
+            context.user_data.pop("result_pdf", None)
+            context.user_data.pop("result_caption", None)
+
         # Handle package completion and cleanup
         if cid in chat_states:
             info = chat_states.get(cid)
             if info and "user_package_id" in info:
                 handle_package_test_completion(update, context, cid, info["user_package_id"], int(info["test_choice"]), info)
+            
+            # AI Profile Updater - run in background and only notify user on success with a plain message
+            try:
+                console.log(f"[bold blue]🚀 Scheduling AI profile update for user {cid}...[/bold blue]")
+                summary_for_profile = result_data.get("summary", "")
+
+                def _profile_update_task(bot, chat_id, summary_text):
+                    try:
+                        ai_utils.update_user_profile_with_ai(chat_id, summary_text)
+                        # send single success message (no callback_query popup, no interim loading text)
+                        try:
+                            bot.send_message(
+                                chat_id=chat_id,
+                                text="✅ پروفایل هوش مصنوعی شما با موفقیت به‌روزرسانی شد."
+                            )
+                        except Exception as send_err:
+                            logger.error(f"Failed to send profile update success message to {chat_id}: {send_err}")
+                    except Exception as profile_err:
+                        # Log the error; do not show callback popups or interim loading messages per request.
+                        logger.error(f"AI profile update failed for {chat_id}: {profile_err}", exc_info=True)
+
+                threading.Thread(
+                    target=_profile_update_task,
+                    args=(context.bot, cid, summary_for_profile),
+                    daemon=True
+                ).start()
+
+                console.log(f"[bold green]✅ AI profile update scheduled for user {cid}.[/bold green]")
+            except Exception as e:
+                console.log(f"[bold red]❌ Failed to schedule AI profile update for user {cid}: {e}[/bold red]")
+                logger.error(f"Failed to schedule AI profile update for user {cid}: {e}", exc_info=True)
+
             del chat_states[cid]
+
+# Add new callback handler for profile update status
+def show_profile_update_status(update: Update, context: CallbackContext):
+    """Show profile update status via callback query alert"""
+    query = update.callback_query
+    query.answer(
+        text="پروفایل هوش مصنوعی شما با موفقیت به‌روزرسانی شد! 🎉",
+        show_alert=True
+    )
+    # Remove the inline keyboard after showing status
+    query.message.edit_text(
+        "پروفایل شما با موفقیت به‌روزرسانی شد.",
+        reply_markup=None
+    )
 
 # =============================================================================
 # ADMIN HANDLERS

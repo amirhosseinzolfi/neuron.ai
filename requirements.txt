@@ -1,6 +1,22 @@
-rich
-langchain-openai
-langchain
-langgraph
-chainlit
+# Requirements for Blue Psychology Test Bot
+# Core bot and UI
 python-telegram-bot==13.15
+rich>=12.6.0
+streamlit
+
+# LLM / AI integrations
+langchain
+openai
+langchain_openai
+langgraph
+g4f
+weasyprint
+markdown2
+# Utilities
+Pillow
+requests
+aiohttp
+typing-extensions
+
+# Optional / environment helpers
+python-dotenv
