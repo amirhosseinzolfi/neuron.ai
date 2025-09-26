@@ -10,6 +10,7 @@ ENV:
 """
 
 from __future__ import annotations
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 import json
 import logging
@@ -29,15 +30,15 @@ from telegram_text_optimizer import format_analysis_for_telegram
 import db
 
 from prompts import (
-    CHATBOT_PERSONA,
+    CHATBOT_PERSONA_2,
     COMBINED_SYSTEM_INSTRUCTION,
-    ANALYSIS_SUMMARY_PROMPT,
     RESULT_CHATBOT_PERSONA,
     RESULT_ANALYZE_CHATBOT_PERSONA,
     IMAGE_PROMPT_SYSTEM,
     IMAGE_PROMPT_GENERATION_TEMPLATE,
     HISTORY_SUMMARIZATION_PROMPT,
-    PROFILE_UPDATER,
+    PROFILE_UPDATER_SYSTEM,
+    PROFILE_UPDATER_PROMPT_TEMPLATE,
 )
 
 # -----------------------------------------------------------------------------
@@ -85,8 +86,9 @@ def _write_event(event: Dict[str, Any]) -> None:
 # -----------------------------------------------------------------------------
 
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:15207/v1")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "324")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "AIzaSyB3snkod5frJEloSQlhI1Son3ny04rCozQ")
+SECONDARY_OPENAI_API_KEY = os.getenv("SECONDARY_OPENAI_API_KEY", "AIzaSyDB4gyowTXD_5w6Eyv7qer3qa0JuEntXNg")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gemini-2.5-flash")
 
 HISTORY_TRIM_THRESHOLD = int(os.getenv("AI_HISTORY_TRIM_THRESHOLD", "15"))
 HISTORY_RETENTION = int(os.getenv("AI_HISTORY_RETENTION", "5"))
@@ -98,9 +100,15 @@ SUMMARY_INTERVAL = int(os.getenv("AI_HISTORY_SUMMARY_INTERVAL", "5"))
 # -----------------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
-def get_llm() -> ChatOpenAI:
-    LOG.info(f"LLM init: model={OPENAI_MODEL} base_url={OPENAI_BASE_URL}")
-    return ChatOpenAI(base_url=OPENAI_BASE_URL, model_name=OPENAI_MODEL, temperature=0.6, api_key=OPENAI_API_KEY)
+def get_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=OPENAI_API_KEY)
+
+
+@lru_cache(maxsize=1)
+def get_secondary_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=SECONDARY_OPENAI_API_KEY)
 
 
 # -----------------------------------------------------------------------------
@@ -198,7 +206,7 @@ def handle_history_summarization(state: Dict[str, Any]) -> None:
         # record lengths before trimming for debug
         original_history_len = len(state.get("conversation_history", []))
 
-        llm = get_llm()
+        llm = get_secondary_llm()
         try:
             summary = llm.invoke([SystemMessage(content=system_content), HumanMessage(content=HISTORY_SUMMARIZATION_PROMPT.format(conversation=conv))]).content.strip()
             # store results and trim history
@@ -252,18 +260,19 @@ def update_user_profile_with_ai(chat_id: int, test_result_text: str):
             return
 
         current_info = user_data.get("information") or ""
+        user_name = user_data.get("first_name") or ""
+        user_age = user_data.get("age") or user_data.get("progress") or ""  # best-effort age field if available
 
-        # 2. Prepare the prompt for the AI
-        prompt = (
-            f"**User's Current Information:**\n{current_info}\n\n"
-            f"**New Psychology Test Result:**\n{test_result_text}\n\n"
-            "Based on the new test result, please update the user's information."
+        # Build the human prompt by injecting the current profile and new test result.
+        human_prompt = PROFILE_UPDATER_PROMPT_TEMPLATE.format(
+            current_profile=current_info,
+            new_test_result=test_result_text,
         )
 
-        # 3. Call the AI
+        # Use a concise system instruction and the filled human prompt (profile + test result)
         llm = get_llm()
-        system_message = SystemMessage(content=PROFILE_UPDATER)
-        human_message = HumanMessage(content=prompt)
+        system_message = SystemMessage(content=PROFILE_UPDATER_SYSTEM)
+        human_message = HumanMessage(content=human_prompt)
         
         console.log("[yellow]Invoking LLM for profile update...[/yellow]")
         response = llm.invoke([system_message, human_message])
@@ -282,12 +291,13 @@ def update_user_profile_with_ai(chat_id: int, test_result_text: str):
         ai_table = Table(title="🧠 AI Prompt & Response", show_header=True, header_style="bold green")
         ai_table.add_column("Component", style="cyan")
         ai_table.add_column("Details", style="white")
-        ai_table.add_row("SYSTEM Prompt", PROFILE_UPDATER)
-        ai_table.add_row("HUMAN Prompt", prompt)
+        ai_table.add_row("SYSTEM Prompt", PROFILE_UPDATER_SYSTEM)
+        ai_table.add_row("HUMAN Prompt (profile + test result)", human_prompt)
         ai_table.add_row("AI Response", updated_info)
         console.print(ai_table)
 
         # 5. Save the updated information to the database
+        # store updated_info into the `information` field (keeps backward compatibility)
         db.update_user_profile(chat_id, information=updated_info)
         console.log(f"[bold green]✅ Successfully updated profile for chat_id: {chat_id} in the database.[/bold green]")
 
@@ -395,7 +405,7 @@ def _store_last_debug(state: Dict[str, Any], *, call: str, system: str, user: st
 def get_ai_response(state: Dict[str, Any], additional_prompt: Optional[str] = None) -> str:
     handle_history_summarization(state)
     llm = get_llm()
-    system_text = _build_system_instruction(state, CHATBOT_PERSONA)
+    system_text = _build_system_instruction(state, CHATBOT_PERSONA_2)
 
     messages = [SystemMessage(content=system_text)]
     messages.extend(_conversation_history_to_messages(state))
@@ -436,7 +446,14 @@ def process_question_turn(
     next_opts = normalize_option_texts(next_options) if next_options else []
 
     system_text = _build_system_instruction(state, COMBINED_SYSTEM_INSTRUCTION)
-    payload = {"user_input": user_input}
+    # --- NEW: include previous question and options in the payload ---
+    payload = {
+        "previous_question": {
+            "text": question_text,
+            "options": current_opts,
+        },
+        "user_input": user_input,
+    }
     if next_question_text:
         payload[f"next_question_{qnum+1}"] = {"text": next_question_text, "options": next_opts}
 
@@ -456,30 +473,23 @@ def process_question_turn(
 
     _store_last_debug(state, call=f"process_question_turn[q{qnum}]", system=system_text, user=json.dumps(payload, ensure_ascii=False), messages=len(messages), response=raw_resp)
 
+    # Only accept AI's semantic validation. Do NOT auto-accept raw user input here.
     valid = bool(data.get("valid", False))
     selected_option = data.get("selected_option")
     retry_message = data.get("retry_message")
     next_question = data.get("next_question")
 
     if not valid:
-        ui = (user_input or "").strip()
-        trans = str.maketrans("۰۱۲۳۴۵۶۷۸۹", "0123456789")
-        ui_norm = ui.translate(trans)
-        digits = "".join(ch for ch in ui_norm if ch.isdigit())
-        if digits.isdigit():
-            idx = int(digits) - 1
-            if 0 <= idx < len(current_opts):
-                valid = True
-                selected_option = current_opts[idx]
-                retry_message = None
-        else:
-            low = ui_norm.strip().lower()
-            for opt in current_opts:
-                if low == str(opt).strip().lower():
-                    valid = True
-                    selected_option = str(opt)
-                    retry_message = None
-                    break
+        # Log that user input was intentionally ignored and request explicit clarification
+        _write_event({
+            "type": "process_question_turn_ignored_user_input",
+            "q": qnum,
+            "user_input": user_input,
+            "raw_response_len": len(raw_resp),
+            "parsed_valid": False,
+        })
+        if not retry_message:
+            retry_message = "پاسخ نامعتبر است. لطفاً شماره گزینه یا متن دقیق یکی از گزینه‌ها را مجدداً ارسال کنید."
 
     if valid and not next_question and next_question_text:
         next_question = build_default_question_text(
@@ -490,7 +500,7 @@ def process_question_turn(
 
 
 def summarize_results(state: Dict[str, Any], results: Dict[str, Any]) -> str:
-    llm = get_llm()
+    llm = get_secondary_llm()
     answers_list = results.get("answers", [])
     formatted = [
         {"question": a.get("question", "N/A"), "selected_option": a.get("selected_option", "N/A"), "user_response": a.get("original_response", "N/A")}
@@ -570,7 +580,7 @@ def analyze_final_result(state: Dict[str, Any], final_text: str) -> str:
     """
     Produce a concise personalized analysis/caption suitable for display in UI.
     """
-    llm = get_llm()
+    llm = get_secondary_llm()
     system_text = RESULT_ANALYZE_CHATBOT_PERSONA + "\nتحلیل را به صورت ساختار‌یافته و خلاصه ارائه کن."
     
     # Prepare focused prompt for analysis
@@ -578,12 +588,19 @@ def analyze_final_result(state: Dict[str, Any], final_text: str) -> str:
     user_age = state.get("user_age", "")
     test_name = state.get("test_data", {}).get("test_name", "")
     user_info = state.get("user_info", "") or ""
+
+    # Use only the conversation summary, not full conversation messages
+    conv_summary = state.get("history_summary") or state.get("summary", "")
+    if not conv_summary:
+        conv_summary = "خلاصهٔ گفتگو موجود نیست."
+
     prompt = (
         f"[اطلاعات کاربر]\n"
         f"نام: {user_name}\n"
         f"سن: {user_age}\n"
         f"تست: {test_name}\n\n"
         f"[پروفایل]\n{user_info}\n\n"
+        f"[خلاصه گفتگو]\n{conv_summary}\n\n"
         f"[نتایج تحلیل]\n{final_text}"
     )
 

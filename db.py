@@ -1,5 +1,6 @@
 import sqlite3
 import time
+import logging
 
 DB_PATH = 'bot.db'
 
@@ -42,6 +43,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN image TEXT")  # Store image file path
     if "stars" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN stars INTEGER DEFAULT 0")
+    if "psychology_profile" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN psychology_profile TEXT")  # Store JSON file path
 
     # create payment_screenshots table
     cur.execute("CREATE TABLE IF NOT EXISTS payment_screenshots ("
@@ -124,7 +127,18 @@ def save_user(chat_id: int, username: str, first_name: str, last_name: str):
     """Insert or update a user record with Telegram metadata."""
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute('INSERT OR IGNORE INTO users (chat_id) VALUES (?)', (chat_id,))
+    
+    # Check if user exists
+    cur.execute('SELECT chat_id FROM users WHERE chat_id = ?', (chat_id,))
+    user_exists = cur.fetchone() is not None
+    
+    # Insert if new user
+    if not user_exists:
+        cur.execute('INSERT INTO users (chat_id) VALUES (?)', (chat_id,))
+        # Initialize psychological profile for new users
+        initialize_psychology_profile(chat_id)
+    
+    # Update user metadata
     cur.execute(
         'UPDATE users SET username = ?, first_name = ?, last_name = ? WHERE chat_id = ?',
         (username, first_name, last_name, chat_id)
@@ -291,12 +305,14 @@ def get_user(chat_id: int):
     cur = conn.cursor()
     cur.execute('''
         SELECT chat_id, balance, username, first_name, last_name,
-               progress, information, image, stars 
+               progress, information, image, stars, psychology_profile
         FROM users WHERE chat_id = ?''', (chat_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
         return None
+    # Defensive read: ensure we return psychology_profile even if DB older schema lacks it
+    keys = row.keys()
     return {
         'chat_id': row['chat_id'],
         'balance': row['balance'],
@@ -306,7 +322,8 @@ def get_user(chat_id: int):
         'progress': row['progress'],
         'information': row['information'],
         'image': row['image'],
-        'stars': row['stars']
+        'stars': row['stars'],
+        'psychology_profile': row['psychology_profile'] if 'psychology_profile' in keys else None
     }
 
 def update_user_profile(chat_id: int, **kwargs):
@@ -350,6 +367,126 @@ def get_test_result_by_test_id(chat_id: int, test_id: int):
         'pdf_path': row['pdf_path'],
         'final_analyze': row['final_analyze']
     }
+
+def get_default_psychology_profile() -> dict:
+    """Returns the default psychological profile template with null values."""
+    from datetime import datetime
+    
+    return {
+        "name": None,
+        "age": None,
+        "gender": None,
+        "job": None,
+        "education_level": None,
+        "location": {
+            "city": None,
+            "region": None,
+            "country": None
+        },
+        "contact": {
+            "email": None,
+            "phone": None
+        },
+        "interests": [],
+        "values": [],
+        "goals": [],
+        "personality_traits": {
+            "big_five": {
+                "openness": None,
+                "conscientiousness": None,
+                "extraversion": None,
+                "agreeableness": None,
+                "neuroticism": None
+            }
+        },
+        "schema_patterns": [],
+        "communication_style": {
+            "style": None,
+            "tone_preference": None
+        },
+        "emotional_style": {
+            "baseline_mood": None,
+            "stress_tolerance": None,
+            "coping_strategies": []
+        },
+        "strengths": [],
+        "challenges": [],
+        "notes": None,
+        "last_updated": datetime.utcnow().isoformat()
+    }
+
+def initialize_psychology_profile(chat_id: int) -> bool:
+    """Initialize a new user's psychological profile with default template.
+    
+    Args:
+        chat_id: The user's chat ID
+    
+    Returns:
+        bool: True if profile was initialized successfully, False otherwise
+    """
+    try:
+        default_profile = get_default_psychology_profile()
+        save_psychology_profile(chat_id, default_profile)
+        return True
+    except Exception as e:
+        logging.error(f"Failed to initialize psychology profile for user {chat_id}: {e}")
+        return False
+
+def save_psychology_profile(chat_id: int, profile_data: dict):
+    """Save psychology profile for a user and store it as a JSON file.
+    
+    Args:
+        chat_id: The user's chat ID
+        profile_data: Dictionary containing the psychology profile data
+    """
+    import os
+    import json
+    
+    # Create profile directory if it doesn't exist
+    profile_dir = 'database/psychology_profiles'
+    os.makedirs(profile_dir, exist_ok=True)
+    
+    # Generate filename using chat_id
+    filename = f"{chat_id}_profile.json"
+    file_path = os.path.join(profile_dir, filename)
+    
+    # Save profile data as JSON file
+    with open(file_path, 'w') as f:
+        json.dump(profile_data, f, indent=2)
+    
+    # Update database with file path
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('UPDATE users SET psychology_profile = ? WHERE chat_id = ?', 
+                (file_path, chat_id))
+    conn.commit()
+    conn.close()
+
+def get_psychology_profile(chat_id: int) -> dict:
+    """Retrieve psychology profile for a user.
+    
+    Args:
+        chat_id: The user's chat ID
+        
+    Returns:
+        Dictionary containing the psychology profile data or None if not found
+    """
+    import json
+    
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT psychology_profile FROM users WHERE chat_id = ?', (chat_id,))
+    row = cur.fetchone()
+    conn.close()
+    
+    if not row or not row['psychology_profile']:
+        return None
+        
+    try:
+        with open(row['psychology_profile'], 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
 
 def get_all_users():
     """Return list of all users ever seen, including metadata and balance."""

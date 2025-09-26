@@ -27,6 +27,7 @@ from pdf_utils import generate_pdf
 import telegram_ui as ui
 from smart_chat import get_chat_agent, get_memory, chat as smart_chat_logic
 from utils import chat_states, admin_only, escape_markdown_v2, ADMINS
+from telegram_text_optimizer import optimize_for_telegram
 
 # Console for rich logging
 console = Console()
@@ -65,12 +66,58 @@ def get_smart_chat_agent():
     return SMART_CHAT_AGENT
 
 def send_formatted_text(update: Update, text: str, reply_markup=None):
-    """Formats markdown text to HTML and sends it, handling message editing."""
-    from telegrambot import format_md_for_telegram
-    
-    message_chunks = format_md_for_telegram(text)
+    """Formats markdown/text to Telegram-friendly HTML using telegram_text_optimizer
+    and sends it, handling message editing. Splits into safe-sized chunks."""
+    # If the text already looks like optimized HTML, skip additional optimization.
+    if text and ("<b>" in text or "<i>" in text or "<code>" in text):
+        optimized = text
+    else:
+        optimized = optimize_for_telegram(text or "")
+
+    # Simple chunking by paragraphs to keep messages under Telegram limits
+    def _chunk_html(html_text: str, max_len: int = 4000):
+        if not html_text:
+            return [""]
+        if len(html_text) <= max_len:
+            return [html_text]
+        paragraphs = [p.strip() for p in re.split(r'\n\s*\n', html_text) if p.strip()]
+        chunks = []
+        current = ""
+        for para in paragraphs:
+            add_len = len(para) + (2 if current else 0)
+            if len(current) + add_len <= max_len:
+                current += ("\n\n" if current else "") + para
+            else:
+                if current:
+                    chunks.append(current)
+                if len(para) > max_len:
+                    # break very long paragraph by lines
+                    for line in para.split('\n'):
+                        if len(line) > max_len:
+                            # fallback hard split
+                            for i in range(0, len(line), max_len):
+                                chunks.append(line[i : i + max_len])
+                            current = ""
+                        else:
+                            if current and len(current) + 1 + len(line) <= max_len:
+                                current += "\n" + line
+                            else:
+                                if current:
+                                    chunks.append(current)
+                                current = line
+                    if current:
+                        chunks.append(current)
+                        current = ""
+                else:
+                    current = para
+        if current:
+            chunks.append(current)
+        return chunks or [html_text[:max_len]]
+
+    message_chunks = _chunk_html(optimized)
+
     is_callback = update.callback_query is not None
-    
+
     if is_callback:
         reply_method = update.callback_query.message.reply_text
         edit_method = update.callback_query.edit_message_text
@@ -81,7 +128,7 @@ def send_formatted_text(update: Update, text: str, reply_markup=None):
     sent_messages = []
     for i, chunk in enumerate(message_chunks):
         current_markup = reply_markup if i == len(message_chunks) - 1 else None
-        
+
         try:
             if i == 0 and is_callback and edit_method:
                 sent_message = edit_method(
@@ -108,7 +155,7 @@ def send_formatted_text(update: Update, text: str, reply_markup=None):
 
         if len(message_chunks) > 1 and i < len(message_chunks) - 1:
             time.sleep(0.6)
-            
+
     return sent_messages
 
 def safe_edit_message(update: Update, context: CallbackContext, text: str, 
@@ -198,10 +245,24 @@ def safe_edit_message(update: Update, context: CallbackContext, text: str,
             )
 
 def get_formatted_text(text: str):
-    """Get formatted text chunks."""
-    from telegrambot import format_md_for_telegram
-    chunks = format_md_for_telegram(text)
-    return chunks[0] if chunks else text
+    """Get formatted text chunks (first chunk returned) optimized via telegram_text_optimizer."""
+    optimized = optimize_for_telegram(text or "")
+
+    # Return first reasonable-sized chunk
+    if len(optimized) <= 4000:
+        return optimized
+    # else split by paragraphs
+    parts = [p.strip() for p in re.split(r'\n\s*\n', optimized) if p.strip()]
+    current = ""
+    for part in parts:
+        if len(current) + len(part) + 2 <= 4000:
+            current += ("\n\n" if current else "") + part
+        else:
+            if current:
+                return current
+            # single large part — truncate safely
+            return part[:3996] + "..."
+    return current or optimized[:4000]
 
 def save_user_data(update: Update):
     """Save user data to database."""
@@ -380,15 +441,24 @@ def handle_smart_chat_message(update: Update, context: CallbackContext):
         console.log("[yellow]🚀 Calling smart chat logic...[/yellow]")
         response = smart_chat_logic(agent, user_id, message_text)
         
-        console.log(f"[green]✅ Received response ({len(response)} chars)[/green]")
-        console.log(f"[dim]Response preview: {response[:100]}{'...' if len(response) > 100 else ''}[/dim]")
-        
-        # Delete waiting message and send response
+        console.log(f"[green]✅ Received response ({(len(response['raw']) if isinstance(response, dict) else len(response))} chars)[/green]" if isinstance(response, dict) else f"[green]✅ Received response ({len(response)} chars)[/green]")
+        console.log(f"[dim]Response preview: {(response['raw'][:100] if isinstance(response, dict) else response[:100])}{'...' if (isinstance(response, dict) and len(response['raw'])>100) or (not isinstance(response, dict) and len(response)>100) else ''}[/dim]")
+
+        # Delete waiting message
         console.log("[blue]🗑️ Deleting waiting message...[/blue]")
-        waiting_message.delete()
-        
-        console.log("[blue]📤 Sending response to user...[/blue]")
-        update.message.reply_text(response)
+        try:
+            waiting_message.delete()
+        except Exception:
+            pass
+
+        # Prefer refined version if provided
+        if isinstance(response, dict) and "refined" in response:
+            display_text = response["refined"]
+        else:
+            display_text = response if isinstance(response, str) else str(response)
+
+        console.log("[blue]📤 Sending refined response to user...[/blue]")
+        send_formatted_text(update, display_text)
         
         console.log("[bold green]✅ Smart chat message handled successfully![/bold green]")
         
@@ -398,13 +468,12 @@ def handle_smart_chat_message(update: Update, context: CallbackContext):
         
         # Delete waiting message even if there's an error
         try:
-            console.log("[blue]🗑️ Deleting waiting message after error...[/blue]")
             waiting_message.delete()
-        except Exception as delete_error:
-            console.log(f"[red]❌ Failed to delete waiting message: {delete_error}[/red]")
+        except Exception:
+            pass
             
         console.log("[blue]📤 Sending error message to user...[/blue]")
-        update.message.reply_text("متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+        send_formatted_text(update, "متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
 
 def end_smart_chat(update: Update, context: CallbackContext):
     """Ends the smart chat session via command."""
@@ -858,21 +927,54 @@ def my_profile(update: Update, context: CallbackContext):
 def show_psychological_profile(update: Update, context: CallbackContext):
     """Show user's psychological profile information."""
     query = update.callback_query
-    query.answer()
-    
-    user_id = query.message.chat_id
-    user_data = db.get_user(user_id)
-    
+    try:
+        query.answer()
+    except Exception:
+        # If answer fails, continue — don't crash
+        pass
+
+    # Determine user id safely (callback may lack message in some edge cases)
+    try:
+        user_id = query.message.chat_id if (query and getattr(query, "message", None)) else update.effective_chat.id
+    except Exception:
+        user_id = update.effective_chat.id
+
+    try:
+        user_data = db.get_user(user_id)
+    except Exception as e:
+        logger.error(f"Error fetching user data for {user_id}: {e}", exc_info=True)
+        # Safe fallback to friendly message
+        safe_edit_message(update, context, "⚠️ خطا در بازیابی اطلاعات پروفایل. لطفاً چند لحظه بعد دوباره تلاش کنید.")
+        return
+
     if not user_data or not user_data.get('information'):
-        profile_text = ui.NO_PSYCH_PROFILE
+        profile_text_raw = ui.NO_PSYCH_PROFILE
     else:
-        profile_text = ui.PSYCH_PROFILE_TEMPLATE.format(
-            name=user_data.get('first_name', 'کاربر'),
-            progress=user_data.get('progress', 0),
-            stars=user_data.get('stars', 0),
-            information=user_data.get('information', '')
-        )
-    
+        # Format using available fields but guard against missing keys/format errors
+        try:
+            profile_text_raw = ui.PSYCH_PROFILE_TEMPLATE.format(
+                name=user_data.get('first_name', 'کاربر'),
+                progress=user_data.get('progress', 0),
+                stars=user_data.get('stars', 0),
+                information=user_data.get('information', '')
+            )
+        except Exception as e:
+            logger.error(f"Error formatting profile template for {user_id}: {e}", exc_info=True)
+            profile_text_raw = ui.NO_PSYCH_PROFILE
+
+    # Optimize / convert to Telegram-safe HTML
+    try:
+        profile_text = optimize_for_telegram(profile_text_raw)
+    except Exception as e:
+        logger.error(f"Optimizer failure for profile text (user {user_id}): {e}", exc_info=True)
+        profile_text = profile_text_raw
+
+    # Enforce maximum length requirement (<= 1200 chars)
+    MAX_PROFILE_LEN = 1200
+    if len(profile_text) > MAX_PROFILE_LEN:
+        logger.info("Truncating psychological profile for user %s to %d chars", user_id, MAX_PROFILE_LEN)
+        profile_text = profile_text[: MAX_PROFILE_LEN - 3] + "..."
+
     keyboard = [[InlineKeyboardButton("🔙 بازگشت به پروفایل", callback_data="my_profile")]]
     safe_edit_message(update, context, profile_text, InlineKeyboardMarkup(keyboard))
 
@@ -1102,14 +1204,17 @@ def handle_answer(update: Update, context: CallbackContext):
             console.log(f"[yellow]🚀 Processing message for user {user_id}...[/yellow]")
             response = smart_chat_logic(agent, user_id, text)
             
-            console.log(f"[green]✅ Got response ({len(response)} chars)[/green]")
+            console.log(f"[green]✅ Got response ({(len(response['raw']) if isinstance(response, dict) else len(response))} chars)[/green]" if isinstance(response, dict) else f"[green]✅ Got response ({len(response)} chars)[/green]")
             
             # Delete waiting message and send response
             console.log("[blue]🗑️ Deleting waiting message...[/blue]")
             waiting_message.delete()
             
             console.log("[blue]📤 Sending response...[/blue]")
-            update.message.reply_text(response)
+            if isinstance(response, dict) and "refined" in response:
+                send_formatted_text(update, response["refined"])
+            else:
+                send_formatted_text(update, response if isinstance(response, str) else str(response))
             
             console.log("[bold green]✅ Smart chat response sent successfully![/bold green]")
             
@@ -1119,14 +1224,13 @@ def handle_answer(update: Update, context: CallbackContext):
             
             # Delete waiting message even if there's an error
             try:
-                console.log("[blue]🗑️ Deleting waiting message after error...[/blue]")
                 waiting_message.delete()
             except Exception as delete_error:
                 console.log(f"[red]❌ Failed to delete waiting message: {delete_error}[/red]")
                 
             console.log("[blue]📤 Sending error message...[/blue]")
-            update.message.reply_text("متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
-            
+            send_formatted_text(update, "متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+        
         return  # End processing here
 
     info = chat_states.get(cid)
@@ -1360,7 +1464,7 @@ def handle_answer(update: Update, context: CallbackContext):
             time.sleep(3)
         
         # Wait for background thread to complete (with timeout)
-        background_thread.join(timeout=30)
+        background_thread.join()  # wait until the background processing completes
         
         # Delete the final waiting message
         if current_message:
@@ -1368,19 +1472,18 @@ def handle_answer(update: Update, context: CallbackContext):
                 current_message.delete()
             except Exception as e:
                 logger.error(f"Error deleting final waiting message: {e}")
-        
+                
         # Send results in correct order (image -> analysis -> PDF)
         try:
-            # Always set context data for unified sender
             context.user_data["result_image"] = result_data["images"][0] if result_data.get("images") else None
             context.user_data["result_pdf"] = result_data.get("pdf_path")
             context.user_data["result_caption"] = result_data.get("caption")
-
+            
             # Use unified sender which will handle all components
             from telegrambot import send_styled_test_result
             test_name = info.get("test_name", "تست روانشناسی")
             success = send_styled_test_result(update, context, test_name, result_data.get("summary", ""))
-
+            
             if not success:
                 # On failure, try sending components individually
                 if context.user_data.get("result_image"):
@@ -1628,4 +1731,5 @@ def handle_admin_reduce_input(update: Update, context: CallbackContext, amount_t
         del chat_states[admin_id]
 
     except ValueError:
+        update.message.reply_text(ui.ADMIN_INVALID_AMOUNT)
         update.message.reply_text(ui.ADMIN_INVALID_AMOUNT)

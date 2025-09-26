@@ -216,13 +216,9 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
         # Get paths and required data from context
         image_path = context.user_data.get("result_image")
         pdf_path = context.user_data.get("result_pdf")
-        analysis_text = context.user_data.get("result_caption")  # This is the analyzed/optimized version
-        
-        # If no analysis text available, don't show raw summary in UI
-        if not analysis_text:
-            logger.warning("No analysis text available - generating default analysis")
-            analysis_text = "⚠️ خلاصه تحلیل در حال آماده‌سازی است..."
-        
+        # Fallback: use summary_content if result_caption is empty
+        analysis_text = context.user_data.get("result_caption") or summary_content
+
         # 1. First send the AI-generated personality image with simple caption
         if image_path and os.path.exists(image_path):
             send_media_with_caption(
@@ -267,7 +263,7 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
                 chat_id=chat_id,
                 text=ui.RESULT_FALLBACK_TEXT.format(
                     test_name=test_name,
-                    summary=fallback_text[:4000] + ("..." if len(fallback_text) > 4000 else "")
+                    summary=fallback_text[:4000000] + ("..." if len(fallback_text) > 4000000 else "")
                 )
             )
         except Exception as fallback_e:
