@@ -387,6 +387,7 @@ def register_handlers(dp):
         ("^purchased_packages$", handlers.purchased_packages_callback),
         ("^wallet_info$", handlers.wallet_info_callback),
         ("^charge_wallet$", handlers.charge_wallet_callback),
+        ("^get_gift$", handlers.get_gift_callback),
         ("^smart_packages$", handlers.smart_packages),
         ("^smart_therapy$", handlers.smart_therapy_session),
         ("^smart_pack_", handlers.smart_package_selected),

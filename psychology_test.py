@@ -465,6 +465,10 @@ def summarize(state: TestState) -> TestState:
         console.print(f"[bright_magenta]{msg}[/bright_magenta]")
         time.sleep(0.5)
 
+    # Ensure conversation summary is up to date before final analysis
+    from ai_utils import handle_history_summarization
+    handle_history_summarization(state)
+    
     # Full textual analysis used in PDF and stored as test_results["analysis"]
     analysis = summarize_results(state, state["test_results"])
     _render_ai_debug(state, "Final Summary")

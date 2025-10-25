@@ -218,3 +218,25 @@ NO_PSYCH_PROFILE = """👤 **پروفایل روانشناسی**
 
 هنوز اطلاعات کافی برای تحلیل شخصیتی شما جمع‌آوری نشده است.
 برای دریافت تحلیل شخصیتی، لطفاً تست‌های روانشناسی را انجام دهید."""
+
+ADMIN_PANEL_TITLE = """پنل  ادمین"""
+
+ADMIN_NO_USERS = "هیچ کاربری یافت نشد."
+
+ADMIN_USERS_LIST_TITLE = "لیست کاربر ها"
+
+ADMIN_USER_ACTIONS_TITLE = "مدیریت کاربر {user_id}"
+
+ADMIN_CHARGE_PROMPT = "مبلغ شارژ برای کاربر {user_id} را وارد کنید (به هزار تومان):"
+
+ADMIN_REDUCE_PROMPT = "مبلغ کسر برای کاربر {user_id} را وارد کنید (به هزار تومان):"
+
+ADMIN_CHARGE_SUCCESS = "✅ کیف پول کاربر {user_id} به مبلغ {amount:,} هزار تومان شارژ شد.\nموجودی جدید: {balance:,} هزار تومان"
+
+ADMIN_REDUCE_SUCCESS = "✅ از کیف پول کاربر {user_id} مبلغ {amount:,} هزار تومان کسر شد.\nموجودی جدید: {balance:,} هزار تومان"
+
+ADMIN_INVALID_AMOUNT = "❌ مبلغ وارد شده معتبر نیست. لطفاً یک عدد صحیح وارد کنید."
+
+ADMIN_AMOUNT_MUST_BE_POSITIVE = "❌ مبلغ باید بزرگتر از صفر باشد."
+
+ADMIN_AMOUNT_EXCEEDS_BALANCE = "❌ مبلغ وارد شده ({amount:,}) بیشتر از موجودی فعلی کاربر ({balance:,}) است."

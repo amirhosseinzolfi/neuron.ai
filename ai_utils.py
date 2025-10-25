@@ -102,13 +102,41 @@ SUMMARY_INTERVAL = int(os.getenv("AI_HISTORY_SUMMARY_INTERVAL", "5"))
 @lru_cache(maxsize=1)
 def get_llm() -> ChatGoogleGenerativeAI:
     LOG.info(f"LLM init: model={OPENAI_MODEL}")
-    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=OPENAI_API_KEY)
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyB3snkod5frJEloSQlhI1Son3ny04rCozQ")
 
 
 @lru_cache(maxsize=1)
-def get_secondary_llm() -> ChatGoogleGenerativeAI:
+def get_summurize_result_llm() -> ChatGoogleGenerativeAI:
     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=SECONDARY_OPENAI_API_KEY)
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyA-CPg2BoMYTPbF9HIBqWJgxMZPJ7oaMeU")
+@lru_cache(maxsize=1)
+def get_analyze_result_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBNnEM-PPOwiA21fIJ2MA1WNGWLiohf91o")
+
+@lru_cache(maxsize=1)
+def get_image_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyAJfjmNN0J21MSpifLTK5mDmdOBq-3OzCM")
+@lru_cache(maxsize=1)
+def get_history_summurize_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBAHu5yR3ooMkyVyBmdFxw-8lWyaExLjjE")
+
+@lru_cache(maxsize=1)
+def get_neuron_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyDhOV5UKGdh0xspf3yTzgd2pFfIXVU0CJY")
+@lru_cache(maxsize=1)
+def get_g4f_llm() -> ChatOpenAI:
+    """Use local G4F server to avoid API quota limits"""
+    LOG.info(f"Summary LLM init: Using local G4F server")
+    return ChatOpenAI(
+        base_url="http://localhost:15207/v1",
+        model_name="gpt-5-nano",  # or any model from your test_chatbot.py list
+        temperature=0.6,
+        api_key="s33"  # G4F doesn't validate this
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -206,7 +234,7 @@ def handle_history_summarization(state: Dict[str, Any]) -> None:
         # record lengths before trimming for debug
         original_history_len = len(state.get("conversation_history", []))
 
-        llm = get_secondary_llm()
+        llm = get_history_summurize_llm()
         try:
             summary = llm.invoke([SystemMessage(content=system_content), HumanMessage(content=HISTORY_SUMMARIZATION_PROMPT.format(conversation=conv))]).content.strip()
             # store results and trim history
@@ -500,54 +528,101 @@ def process_question_turn(
 
 
 def summarize_results(state: Dict[str, Any], results: Dict[str, Any]) -> str:
-    llm = get_secondary_llm()
+    llm = get_summurize_result_llm()
     answers_list = results.get("answers", [])
-    formatted = [
-        {"question": a.get("question", "N/A"), "selected_option": a.get("selected_option", "N/A"), "user_response": a.get("original_response", "N/A")}
-        for a in answers_list
-    ]
-    formatted_answers = json.dumps(formatted, indent=2, ensure_ascii=False)
-    complete_test_data = json.dumps(results, indent=2, ensure_ascii=False)
+    
+    # Build ultra-compact table format for answers
+    table_rows = []
+    for idx, a in enumerate(answers_list, 1):
+        question = a.get("question", "N/A")
+        user_response = a.get("original_response", a.get("user_input", "N/A"))
+        selected = a.get("selected_option", "N/A")
+        
+        # Get all options for this question from test_data
+        all_options = []
+        try:
+            test_questions = state.get("test_data", {}).get("questions", [])
+            if idx <= len(test_questions):
+                opts = test_questions[idx - 1].get("options", [])
+                all_options = normalize_option_texts(opts)
+        except Exception:
+            pass
+        
+        options_str = " / ".join(all_options) if all_options else "N/A"
+        
+        # Ultra-compact: Q# | Question | UserInput | Choice | Options (separated by /)
+        table_rows.append(f"| {idx} | {question} | {options_str}| {selected} | {user_response} |")
+    
+    # Build markdown table with header
+    formatted_answers = (
+        "| # | سوال | گزینه های موجود | انتخاب کاربر | متن جواب کاربر |\n"
+        "|---|------|------|--------|----------|\n" +
+        "\n".join(table_rows)
+    )
 
-    # Prefer explicit user-provided info (first two questions) as the top of the prompt
-    user_input_info = state.get("user_info", "")  # expected to contain name/age and personal info filled from first two questions
+    # Extract essential metadata
+    user_input_info = state.get("user_info", "")
+    
+    # FIXED: Properly retrieve conversation summary with logging
     conv_summary = state.get("history_summary") or state.get("summary", "")
+    
+    # Log summary availability for debugging
+    _write_event({
+        "type": "summarize_results_summary_check",
+        "has_history_summary": bool(state.get("history_summary")),
+        "has_summary": bool(state.get("summary")),
+        "final_summary_length": len(conv_summary),
+        "conversation_history_count": len(state.get("conversation_history", []))
+    })
+    
+    if not conv_summary:
+        LOG.warning("No conversation summary available for final analysis!")
+        _write_event({"type": "summarize_results_no_summary_warning"})
+    else:
+        LOG.info(f"Using conversation summary ({len(conv_summary)} chars) for final analysis")
+    
     test_name = results.get("test_name") or state.get("test_data", {}).get("test_name", "") or "نامشخص"
-    report_md = state.get("test_data", {}).get("result_format", {}).get("report_md", "") or "{}"
+    report_md = state.get("test_data", {}).get("result_format", {}).get("report_md", "") or ""
 
-    # Build inline prompt (Persian) — include user_input_info at top as requested
-    prompt_lines = [
-        "با استفاده از اطلاعات زیر، یک تحلیل نهایی روانشناختی و شخصی‌سازی‌شده تولید کن:",
-        "", 
-        "اطلاعات ورودی کاربر (پاسخ‌های اولیه):",
-        user_input_info,
+    # Build ultra-compact prompt with explicit summary section
+    prompt_parts = [
+        f"# تحلیل: {test_name}",
         "",
-        "خلاصهٔ گفتگو:",
-        conv_summary,
-        "",
-        f"نام تست: {test_name}",
-        "",
-        "پاسخ‌ها (ساختار شده):",
-        formatted_answers,
-        "",
-        "داده‌های کامل تست (JSON):",
-        complete_test_data,
-        "",
-        "قالب خروجی مورد انتظار (report_md):",
-        report_md,
-        "",
-        # Guidance for style (concise, Persian, use headings and emphasis as appropriate)
-        ("لطفاً یک گزارش نهایی به زبان فارسی تولید کن؛ گزارش باید حرفه‌ای، همدلانه و کاربردی باشد، "
-         "شامل بخش‌های قابل تشخیص (مثلاً مقدمه، تحلیل، نقاط قوت، نقاط قابل بهبود و توصیه‌های عملی). "
-         "خروجی نهایی را به صورت یک سند Markdown خوانا برگردان. از توضیحات متادیتا یا بلوک‌های کدی خودداری کن.")
+        f"**کاربر:** {user_input_info}",
     ]
-    prompt_final = "\n".join(prompt_lines)
+    
+    # Add conversation summary if available (with clear labeling)
+    if conv_summary:
+        prompt_parts.extend([
+            "",
+            "## خلاصه گفتگو",
+            conv_summary,
+        ])
+    else:
+        prompt_parts.append("## خلاصه گفتگو: موجود نیست")
+    
+    prompt_parts.extend([
+        "",
+        "## پاسخ‌ها",
+        formatted_answers,
+    ])
+    
+    # Only include report format if meaningful
+    if report_md and report_md.strip() and report_md.strip() != "{}":
+        prompt_parts.extend([
+            "",
+            "## قالب خروجی",
+            report_md,
+        ])
+    
+    # Filter empty strings and join
+    prompt_final = "\n".join(p for p in prompt_parts if p)
 
     system_text = RESULT_CHATBOT_PERSONA
     raw_resp = ""
     try:
         raw_resp = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=prompt_final)]).content.strip()
-        _write_event({"type": "final_summary", "answers_count": len(answers_list), "chars": len(raw_resp)})
+        _write_event({"type": "final_summary", "answers_count": len(answers_list), "chars": len(raw_resp), "had_summary": bool(conv_summary)})
         return raw_resp
     except Exception as e:
         LOG.error(f"summarize_results failed: {e}")
@@ -559,7 +634,7 @@ def summarize_results(state: Dict[str, Any], results: Dict[str, Any]) -> str:
 
 
 def generate_image_prompt(summary: str) -> str:
-    llm = get_llm()
+    llm = get_image_llm()
     system_text = IMAGE_PROMPT_SYSTEM
     user_text = IMAGE_PROMPT_GENERATION_TEMPLATE.format(summary_text=summary)
     raw_resp = ""
@@ -580,8 +655,8 @@ def analyze_final_result(state: Dict[str, Any], final_text: str) -> str:
     """
     Produce a concise personalized analysis/caption suitable for display in UI.
     """
-    llm = get_secondary_llm()
-    system_text = RESULT_ANALYZE_CHATBOT_PERSONA + "\nتحلیل را به صورت ساختار‌یافته و خلاصه ارائه کن."
+    llm = get_analyze_result_llm()
+    system_text = RESULT_ANALYZE_CHATBOT_PERSONA + "\nتحلیل را به صورت ساختر‌یافته و خلاصه ارائه کن."
     
     # Prepare focused prompt for analysis
     user_name = state.get("user_name", "")

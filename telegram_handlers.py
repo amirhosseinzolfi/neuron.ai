@@ -345,12 +345,12 @@ def handle_keyboard_buttons(update: Update, context: CallbackContext):
 
         return handler(update, context)
 
-    # Not a menu button. If user is in a psychology test flow, do nothing here
+    # Not a menu button. If user is in a psychology test flow or admin flow, do nothing here
     cid = update.message.chat_id
     info = chat_states.get(cid)
-    if info and info.get("stage") in ["ask_name_age", "ask_user_info", "answering"]:
-        # Allow normal test flow handlers to operate
-        # clear skip flag so handle_answer can run for test flow
+    if info and info.get("stage") in ["ask_name_age", "ask_user_info", "answering", "admin_charge_amount", "admin_reduce_amount", "await_payment_screenshot"]:
+        # Allow normal test flow or admin handlers to operate
+        # clear skip flag so handle_answer can run for test/admin flow
         context.user_data.pop("_skip_handle_answer", None)
         return None
 
@@ -617,10 +617,14 @@ def start_package_callback(update: Update, context: CallbackContext):
     
     try:
         db.update_balance(cid, -price)
+        new_balance = db.get_balance(cid)
         user_package_id = db.purchase_package(cid, package_id)
         db.add_package_tests(user_package_id, package["tests"])
         
-        query.answer("✅ پکیج با موفقیت خریداری شد!", show_alert=True)
+        query.answer(
+            f"✅ پکیج با موفقیت خریداری شد!\n\nمبلغ پرداختی: {price:,} تومان\nموجودی باقیمانده: {new_balance:,} تومان",
+            show_alert=True
+        )
         
         send_formatted_text(update, package["guide"])
         
@@ -1013,6 +1017,7 @@ def wallet(update: Update, context: CallbackContext):
 
     keyboard = [
         [InlineKeyboardButton("➕ شارژ کیف پول", callback_data='charge_wallet')],
+        [InlineKeyboardButton("🎁 دریافت هدیه", callback_data='get_gift')],
         [InlineKeyboardButton("🔙 بازگشت", callback_data="my_profile")]
     ]
     
@@ -1021,6 +1026,34 @@ def wallet(update: Update, context: CallbackContext):
 def wallet_info_callback(update: Update, context: CallbackContext):
     query = update.callback_query
     query.answer()
+    return wallet(update, context)
+
+def get_gift_callback(update: Update, context: CallbackContext):
+    """Handle get gift button click"""
+    query = update.callback_query
+    cid = query.message.chat_id
+    
+    # Check if user has already received the gift
+    if db.has_received_gift(cid):
+        query.answer(
+            text="🎁 شما قبلاً هدیه خود را دریافت کرده‌اید!",
+            show_alert=True
+        )
+        return
+    
+    # Give the gift
+    gift_amount = 600  # 200,000 as specified
+    db.update_balance(cid, gift_amount)
+    db.mark_gift_received(cid)
+    
+    new_balance = db.get_balance(cid)
+    
+    query.answer(
+        text=f"🎉 تبریک! شما {gift_amount:,} تومان هدیه دریافت کردید!\nموجودی جدید: {new_balance:,} تومان",
+        show_alert=True
+    )
+    
+    # Update the wallet display
     return wallet(update, context)
 
 def charge_wallet_callback(update: Update, context: CallbackContext):
@@ -1125,7 +1158,11 @@ def start_test_callback(update: Update, context: CallbackContext):
     
     try:
         db.update_balance(cid, -price)
-        query.answer("✅ تست با موفقیت خریداری شد!", show_alert=True)
+        new_balance = db.get_balance(cid)
+        query.answer(
+            f"✅ تست با موفقیت خریداری شد!\n\nمبلغ پرداختی: {price:,} تومان\nموجودی باقیمانده: {new_balance:,} تومان",
+            show_alert=True
+        )
         
         chat_states[cid].update({"stage": "ask_name_age", "test_choice": choice})
         send_formatted_text(update, ui.ASK_NAME_AGE)
@@ -1188,6 +1225,13 @@ def handle_answer(update: Update, context: CallbackContext):
         context.user_data.pop("_skip_handle_answer", None)
         return None
 
+    # Check for admin-specific stages first
+    info = chat_states.get(cid)
+    if info and info.get("stage") == "admin_charge_amount":
+        return handle_admin_charge_input(update, context, text, info)
+    if info and info.get("stage") == "admin_reduce_amount":
+        return handle_admin_reduce_input(update, context, text, info)
+
     # Handle smart chat first if active
     if context.user_data.get("smart_chat_active"):
         console.log("[bold cyan]💬 Smart chat is active, processing message...[/bold cyan]")
@@ -1233,16 +1277,9 @@ def handle_answer(update: Update, context: CallbackContext):
         
         return  # End processing here
 
-    info = chat_states.get(cid)
     text = text.strip()
 
-    # Check for admin-specific stages first
-    if info and info.get("stage") == "admin_charge_amount":
-        return handle_admin_charge_input(update, context, text, info)
-    if info and info.get("stage") == "admin_reduce_amount":
-        return handle_admin_reduce_input(update, context, text, info)
-
-    if not info or info["stage"] not in ["ask_name_age", "ask_user_info", "answering"]:
+    if not info or info["stage"] not in ["ask_name_age", "ask_user_info", "answering", "admin_charge_amount", "admin_reduce_amount", "await_payment_screenshot"]:
         return None
 
     if info["stage"] == "ask_name_age":

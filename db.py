@@ -45,6 +45,10 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN stars INTEGER DEFAULT 0")
     if "psychology_profile" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN psychology_profile TEXT")  # Store JSON file path
+    if "gift_received" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN gift_received INTEGER DEFAULT 0")
+    if "gift_received_ts" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN gift_received_ts REAL")
 
     # create payment_screenshots table
     cur.execute("CREATE TABLE IF NOT EXISTS payment_screenshots ("
@@ -487,6 +491,30 @@ def get_psychology_profile(chat_id: int) -> dict:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
+
+def has_received_gift(chat_id: int) -> bool:
+    """Check if user has already received the gift"""
+    conn = get_conn()
+    cur = conn.cursor()
+    # Ensure user exists first
+    cur.execute('INSERT OR IGNORE INTO users (chat_id) VALUES (?)', (chat_id,))
+    conn.commit()
+    cur.execute('SELECT gift_received FROM users WHERE chat_id = ?', (chat_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row and row['gift_received'] == 1
+
+def mark_gift_received(chat_id: int):
+    """Mark that user has received the gift"""
+    conn = get_conn()
+    cur = conn.cursor()
+    # Ensure user exists
+    cur.execute('INSERT OR IGNORE INTO users (chat_id) VALUES (?)', (chat_id,))
+    # Mark gift as received with timestamp
+    cur.execute('UPDATE users SET gift_received = 1, gift_received_ts = ? WHERE chat_id = ?', 
+                (time.time(), chat_id))
+    conn.commit()
+    conn.close()
 
 def get_all_users():
     """Return list of all users ever seen, including metadata and balance."""
