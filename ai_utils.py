@@ -94,46 +94,6 @@ HISTORY_TRIM_THRESHOLD = int(os.getenv("AI_HISTORY_TRIM_THRESHOLD", "15"))
 HISTORY_RETENTION = int(os.getenv("AI_HISTORY_RETENTION", "5"))
 SUMMARY_INTERVAL = int(os.getenv("AI_HISTORY_SUMMARY_INTERVAL", "5"))
 
-# @lru_cache(maxsize=1)
-# def get_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyB3snkod5frJEloSQlhI1Son3ny04rCozQ")
-
-
-# @lru_cache(maxsize=1)
-# def get_summurize_result_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyA-CPg2BoMYTPbF9HIBqWJgxMZPJ7oaMeU")
-# @lru_cache(maxsize=1)
-# def get_analyze_result_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBNnEM-PPOwiA21fIJ2MA1WNGWLiohf91o")
-
-# @lru_cache(maxsize=1)
-# def get_image_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyAJfjmNN0J21MSpifLTK5mDmdOBq-3OzCM")
-# @lru_cache(maxsize=1)
-# def get_history_summurize_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBAHu5yR3ooMkyVyBmdFxw-8lWyaExLjjE")
-
-# @lru_cache(maxsize=1)
-# def get_neuron_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyDhOV5UKGdh0xspf3yTzgd2pFfIXVU0CJY")
-# @lru_cache(maxsize=1)
-# def get_g4f_llm() -> ChatOpenAI:
-#     """Use local G4F server to avoid API quota limits"""
-#     LOG.info(f"Summary LLM init: Using local G4F server")
-#     return ChatOpenAI(
-#         base_url="http://localhost:15203/v1",
-#         model_name="gpt-4o-mini",  # or any model from your test_chatbot.py list
-#         temperature=0.6,
-#         api_key="s33"  # G4F doesn't validate this
-#     )
-
-
 # -----------------------------------------------------------------------------
 # LLM (singleton)
 # -----------------------------------------------------------------------------
