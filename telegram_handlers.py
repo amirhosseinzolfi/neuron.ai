@@ -23,7 +23,6 @@ import psychology_test as pt
 import ai_utils
 import db
 import packages
-import package_ai
 from pdf_utils import generate_pdf
 import telegram_ui as ui
 from app.chat.smart_chat import get_chat_agent, get_memory, chat as smart_chat_logic
@@ -931,7 +930,7 @@ def send_package_report(update: Update, context: CallbackContext, chat_id: int, 
     )
 
     try:
-        report = package_ai.summarize_package_results(user_name, user_age, package_name, results)
+        report = ai_utils.summarize_package_results(user_name, user_age, package_name, results)
         send_formatted_text(update, report)
     except Exception as e:
         logger.error(f"Error generating package report: {e}")

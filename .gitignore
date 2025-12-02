@@ -4,82 +4,95 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+dist/
+build/
 
-# Virtual Environment
-.venv/
-venv/
-ENV/
-env/
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# Environment Variables
+# Environment
 .env
-.env.local
-.env.*.local
+venv/
+env/
+ENV/
+.venv/
+virtualenv/
 
-# Logs and Databases
-*.log
-logs/
-*.sqlite
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.continue/
+.history/
+*.code-profile
+
+# Databases
 *.db
 *.db-shm
 *.db-wal
-bot.db
-bot.db-shm
-bot.db-wal
+bot.db*
+psychology_bot.db*
 
-# Project Specific
-output/
-generated_images/
-test_media/
-har_and_cookies/
-qdrant_storage/
-storage/
-test_media/
-generated_voice.wav
-output.mp3
-api_test.log
+# Logs
+logs/
+*.log
+*.jsonl
 output.log
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
+# Generated content
+generated_images/
+html_reports/
+tools/voice/
+output/
+payments/
+test_media/
 
-# Mac
-.DS_Store
+# Memory & Storage
+memory/
+qdrant_storage/
+storage/
 
-# Other
-*.swp
-*.swo
-y/
-
-# User Data
-profiles/
+# Profiles & User Data
+database/psychology_profiles/
 database/user_profiles/
-blue.code-profile
+profiles/
 
-# Telegram Session
-*.session
+# Credentials & Keys
+har_and_cookies/
+*.pem
+*.key
+config/g4f_cookies.json
+
+# Service files
+*.service
+supervisor_*.conf
+
+# Temporary files
+*.tmp
+*.temp
+*.wav
+*.mp3
+*.ogg
+generated_voice.wav
+
+# Test files
+test_*.py
+*_test.py
+api_test.log
+
+# Documentation (keep main README)
+*_SUMMARY.md
+*_IMPLEMENTATION.md
+*_FIXES.md
+*_CHANGES.md
+CURL_QUICK_REFERENCE.txt
+INTEGRATION_SUMMARY.txt
+ssh_config_optimization.txt
+
+# Scripts (keep essential ones)
+*.sh
+!setup_env.sh
+!install_service.sh
+
+# Frontend build
+src/
+frontend/node_modules/

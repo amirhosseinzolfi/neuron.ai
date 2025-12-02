@@ -85,7 +85,7 @@ DEFAULT_USER_ENTITY = "default_user"
 # ──────────────────────────────────────────────────────────────────────────────
 # LLM config
 GEMINI_MODEL = "gemini-2.0-flash"
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_API_KEY = "AIzaSyBAHu5yR3ooMkyVyBmdFxw-8lWyaExLjjE"
 
 def get_llm() -> ChatGoogleGenerativeAI:
     # single LLM used for both chat and memory extraction (one call)

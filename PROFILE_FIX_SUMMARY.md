@@ -71,7 +71,7 @@ $ python3 test_profile_direct.py
 
 Ensure `.env` contains:
 ```
-GOOGLE_API_KEY_PROFILE=YOUR_API_KEY_HERE
+GOOGLE_API_KEY_PROFILE=AIzaSyCOx9xgfuDYkcDwPEPJQ4kBRjhWpHeF43Q
 ```
 
 ## Usage
