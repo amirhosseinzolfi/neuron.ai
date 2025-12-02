@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تست‌های روانشناسی - Blue Psychology</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .status.healthy {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.unhealthy {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #764ba2;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .test-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .test-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .test-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .test-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .test-card p {
+            color: #555;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chat-container {
+            height: 400px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            overflow-y: auto;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+
+        .message.user {
+            background: #667eea;
+            color: white;
+            margin-right: auto;
+            text-align: right;
+        }
+
+        .message.ai {
+            background: #e8e8e8;
+            color: #333;
+            margin-left: auto;
+            text-align: left;
+        }
+
+        .question-container {
+            background: #f0f4ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-right: 4px solid #667eea;
+        }
+
+        .question-text {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .progress {
+            background: #e0e0e0;
+            height: 8px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        .result-container {
+            background: #f0fff4;
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #48bb78;
+        }
+
+        .result-container h3 {
+            color: #2f855a;
+            margin-bottom: 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #apiUrl {
+            font-family: monospace;
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 تست‌های روانشناسی</h1>
+
+        <!-- API Status -->
+        <div id="apiStatus" class="status">در حال بررسی وضعیت API...</div>
+
+        <!-- API Configuration -->
+        <div class="section">
+            <h2>⚙️ تنظیمات</h2>
+            <div class="form-group">
+                <label>آدرس API:</label>
+                <input type="text" id="apiUrl" value="http://localhost:8000" />
+            </div>
+        </div>
+
+        <!-- User Profile -->
+        <div class="section">
+            <h2>👤 پروفایل کاربری</h2>
+            <div class="form-group">
+                <label>نام:</label>
+                <input type="text" id="userName" placeholder="نام خود را وارد کنید" />
+            </div>
+            <div class="form-group">
+                <label>سن:</label>
+                <input type="number" id="userAge" placeholder="سن شما" min="1" max="150" />
+            </div>
+            <div class="form-group">
+                <label>اطلاعات تکمیلی:</label>
+                <textarea id="userInfo" rows="3" placeholder="اطلاعاتی که می‌خواهید برای شخصی‌سازی نتایج با ما به اشتراک بگذارید..."></textarea>
+            </div>
+        </div>
+
+        <!-- Test Selection -->
+        <div class="section">
+            <h2>📝 انتخاب تست</h2>
+            <div id="testList" class="test-list">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>در حال بارگذاری تست‌ها...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Taking Interface -->
+        <div id="testInterface" class="section hidden">
+            <h2>📋 تست در حال انجام</h2>
+            <div class="progress">
+                <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+            </div>
+            <div id="questionContainer" class="question-container">
+                <div class="question-text" id="questionText"></div>
+                <div class="form-group">
+                    <input type="text" id="answerInput" placeholder="پاسخ خود را وارد کنید..." />
+                </div>
+                <button id="submitAnswerBtn">ارسال پاسخ</button>
+            </div>
+            <div id="resultContainer" class="result-container hidden">
+                <h3>✅ تست تکمیل شد!</h3>
+                <div id="resultText"></div>
+            </div>
+        </div>
+
+        <!-- Smart Chat -->
+        <div class="section">
+            <h2>💬 چت هوشمند</h2>
+            <div id="chatMessages" class="chat-container"></div>
+            <div class="form-group">
+                <input type="text" id="chatInput" placeholder="پیام خود را بنویسید..." />
+            </div>
+            <button id="sendMessageBtn">ارسال پیام</button>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        let API_BASE_URL = document.getElementById('apiUrl').value;
+        let currentSession = null;
+        let currentQuestion = 1;
+        let totalQuestions = 0;
+
+        // Update API URL
+        document.getElementById('apiUrl').addEventListener('change', (e) => {
+            API_BASE_URL = e.target.value;
+            checkAPIHealth();
+        });
+
+        // Check API Health
+        async function checkAPIHealth() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await response.json();
+                const statusDiv = document.getElementById('apiStatus');
+                
+                if (data.status === 'healthy') {
+                    statusDiv.className = 'status healthy';
+                    statusDiv.textContent = '✅ API در دسترس است';
+                    loadTests();
+                } else {
+                    statusDiv.className = 'status unhealthy';
+                    statusDiv.textContent = '❌ API در دسترس نیست';
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('apiStatus');
+                statusDiv.className = 'status unhealthy';
+                statusDiv.textContent = '❌ خطا در اتصال به API';
+                console.error('API health check failed:', error);
+            }
+        }
+
+        // Load Available Tests
+        async function loadTests() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/tests`);
+                const data = await response.json();
+                const testList = document.getElementById('testList');
+                
+                testList.innerHTML = '';
+                data.tests.forEach((test, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'test-card';
+                    card.innerHTML = `
+                        <h3>${test.test_name}</h3>
+                        <p>⏱️ زمان تقریبی: ${test.estimated_time || 'نامشخص'}</p>
+                        <p>📊 تعداد سوالات: ${test.questions.length}</p>
+                    `;
+                    card.onclick = () => startTest(index + 1);
+                    testList.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Failed to load tests:', error);
+                document.getElementById('testList').innerHTML = '<p style="color: red;">خطا در بارگذاری تست‌ها</p>';
+            }
+        }
+
+        // Start Test
+        async function startTest(testId) {
+            const userName = document.getElementById('userName').value;
+            const userAge = parseInt(document.getElementById('userAge').value);
+            const userInfo = document.getElementById('userInfo').value;
+
+            if (!userName || !userAge) {
+                alert('لطفاً نام و سن خود را وارد کنید');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tests/initialize`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_name: userName,
+                        age: userAge,
+                        user_info: userInfo,
+                        test_type: testId.toString(),
+                        chat_id: Date.now()
+                    })
+                });
+
+                const data = await response.json();
+                currentSession = data.session_id;
+                currentQuestion = data.current_question;
+                totalQuestions = data.total_questions;
+
+                // Show test interface
+                document.getElementById('testInterface').classList.remove('hidden');
+                document.getElementById('questionText').textContent = data.question_text;
+                document.getElementById('resultContainer').classList.add('hidden');
+                updateProgress();
+
+                // Scroll to test
+                document.getElementById('testInterface').scrollIntoView({behavior: 'smooth'});
+            } catch (error) {
+                console.error('Failed to start test:', error);
+                alert('خطا در شروع تست');
+            }
+        }
+
+        // Submit Answer
+        document.getElementById('submitAnswerBtn').addEventListener('click', async () => {
+            const answer = document.getElementById('answerInput').value.trim();
+            if (!answer) {
+                alert('لطفاً پاسخ خود را وارد کنید');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/tests/answer`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: currentSession,
+                        user_input: answer
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.finished) {
+                    // Test completed
+                    document.getElementById('questionContainer').classList.add('hidden');
+                    document.getElementById('resultContainer').classList.remove('hidden');
+                    document.getElementById('resultText').innerHTML = 
+                        `<p style="white-space: pre-wrap;">${data.summary}</p>`;
+                } else if (data.success) {
+                    // Next question
+                    currentQuestion = data.current_question;
+                    document.getElementById('questionText').textContent = data.question_text;
+                    document.getElementById('answerInput').value = '';
+                    updateProgress();
+                } else {
+                    // Invalid answer
+                    alert(data.retry_message || 'پاسخ نامعتبر است');
+                }
+            } catch (error) {
+                console.error('Failed to submit answer:', error);
+                alert('خطا در ارسال پاسخ');
+            }
+        });
+
+        // Update Progress Bar
+        function updateProgress() {
+            const progress = (currentQuestion / totalQuestions) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+        }
+
+        // Enter key for answer submission
+        document.getElementById('answerInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('submitAnswerBtn').click();
+            }
+        });
+
+        // Smart Chat
+        document.getElementById('sendMessageBtn').addEventListener('click', async () => {
+            const message = document.getElementById('chatInput').value.trim();
+            if (!message) return;
+
+            const userId = 'web_user_' + (document.getElementById('userName').value || 'anonymous');
+            const messagesDiv = document.getElementById('chatMessages');
+
+            // Add user message
+            const userMsg = document.createElement('div');
+            userMsg.className = 'message user';
+            userMsg.textContent = message;
+            messagesDiv.appendChild(userMsg);
+
+            // Clear input
+            document.getElementById('chatInput').value = '';
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/chat`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: userId,
+                        message: message
+                    })
+                });
+
+                const data = await response.json();
+
+                // Add AI response
+                const aiMsg = document.createElement('div');
+                aiMsg.className = 'message ai';
+                aiMsg.textContent = data.response || data.raw_response || 'پاسخی دریافت نشد';
+                messagesDiv.appendChild(aiMsg);
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } catch (error) {
+                console.error('Chat error:', error);
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'message ai';
+                errorMsg.textContent = 'خطا در ارسال پیام';
+                messagesDiv.appendChild(errorMsg);
+            }
+        });
+
+        // Enter key for chat
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('sendMessageBtn').click();
+            }
+        });
+
+        // Initialize
+        checkAPIHealth();
+    </script>
+</body>
+</html>

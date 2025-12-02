@@ -1,0 +1,29 @@
+"""
+Database package for Blue Psychology Test Bot
+Contains database files, prompts, and data schemas
+"""
+
+# Make commonly used items available at package level
+from .prompts import (
+    COMBINED_SYSTEM_INSTRUCTION,
+    CHATBOT_PERSONA_2,
+    NEURON,
+    RESULT_CHATBOT_PERSONA,
+    RESULT_ANALYZE_CHATBOT_PERSONA,
+    IMAGE_PROMPT_SYSTEM,
+    HISTORY_SUMMARIZATION_PROMPT,
+    PROFILE_UPDATER_SYSTEM,
+    FIRST_QUESTION_PROMPT,
+)
+
+__all__ = [
+    'COMBINED_SYSTEM_INSTRUCTION',
+    'CHATBOT_PERSONA_2',
+    'NEURON',
+    'RESULT_CHATBOT_PERSONA',
+    'RESULT_ANALYZE_CHATBOT_PERSONA',
+    'IMAGE_PROMPT_SYSTEM',
+    'HISTORY_SUMMARIZATION_PROMPT',
+    'PROFILE_UPDATER_SYSTEM',
+    'FIRST_QUESTION_PROMPT',
+]

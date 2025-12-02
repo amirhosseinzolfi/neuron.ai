@@ -1,3 +1,59 @@
 {
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "python-envs.defaultEnvManager": "ms-python.python:venv",
+    "python-envs.pythonProjects": [],
+    "python.defaultInterpreterPath": "/root/promptflow/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "remote.SSH.connectTimeout": 60,
+    "remote.SSH.keepAlive": 30,
+    "remote.SSH.serverAliveInterval": 30,
+    "remote.SSH.serverAliveCountMax": 6,
+    "files.watcherExclude": {
+        "**/.git/objects/**": true,
+        "**/.git/subtree-cache/**": true,
+        "**/node_modules/**": true,
+        "**/.hg/store/**": true,
+        "**/venv/**": true,
+        "**/__pycache__/**": true,
+        "**/qdrant_storage/**": true,
+        "**/storage/**": true,
+        "**/logs/**": true,
+        "**/*.log": true,
+        "**/bot.db*": true,
+        "**/generated_images/**": true,
+        "**/html_reports/**": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        "**/.git": false
+    },
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/venv": true,
+        "**/__pycache__": true,
+        "**/qdrant_storage": true,
+        "**/storage": true,
+        "**/*.log": true
+    },
+    "python.analysis.memory.keepLibraryAst": false,
+    "python.analysis.maxMemory": 4096,
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "files.autoSave": "afterDelay",
+    "files.autoSaveDelay": 1000,
+    "git.autofetch": false,
+    "git.autorefresh": false,
+    "extensions.autoUpdate": false,
+    "extensions.autoCheckUpdates": false,
+    "remote.autoForwardPorts": false,
+    "terminal.integrated.enablePersistentSessions": true,
+    "remote.SSH.useLocalServer": false,
+    "remote.SSH.lockfilesInTmp": true,
+    "remote.SSH.useFlock": false
 }

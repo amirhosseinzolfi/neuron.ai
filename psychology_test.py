@@ -24,7 +24,7 @@ from rich.table import Table
 
 from langgraph.graph import StateGraph
 
-from prompts import FIRST_QUESTION_PROMPT
+from database.prompts import FIRST_QUESTION_PROMPT
 from ai_utils import (
     OPENAI_MODEL,
     OPENAI_BASE_URL,
@@ -52,9 +52,9 @@ except Exception as _e:
 # -----------------------------------------------------------------------------
 
 BASE_DIR = os.path.dirname(__file__)
-TEST_JSON_PATH = os.path.join(BASE_DIR, "test.json")
-RESULTS_PATH = os.path.join(BASE_DIR, "test-result.json")
-CONV_PATH = os.path.join(BASE_DIR, "conversation-history.json")
+TEST_JSON_PATH = os.path.join(BASE_DIR, "database", "test.json")
+RESULTS_PATH = os.path.join(BASE_DIR, "database", "test-result.json")
+CONV_PATH = os.path.join(BASE_DIR, "database", "conversation-history.json")
 
 STREAMLIT_PORT = 8501
 DEFAULT_USER_ID = "cli_user"

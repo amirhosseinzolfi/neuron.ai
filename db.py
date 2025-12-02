@@ -1,8 +1,9 @@
 import sqlite3
 import time
 import logging
+from typing import Optional
 
-DB_PATH = 'bot.db'
+DB_PATH = 'database/bot.db'
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
@@ -45,6 +46,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN stars INTEGER DEFAULT 0")
     if "psychology_profile" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN psychology_profile TEXT")  # Store JSON file path
+    if "user_profile" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN user_profile TEXT")  # Store user profile JSON
     if "gift_received" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN gift_received INTEGER DEFAULT 0")
     if "gift_received_ts" not in cols:
@@ -70,9 +73,14 @@ def init_db():
     cols = [col[1] for col in cur.fetchall()]
     if "pdf_path" not in cols:
         cur.execute("ALTER TABLE test_results ADD COLUMN pdf_path TEXT")
-    # NEW: ensure final_analyze column exists for storing concise analysis/caption
     if "final_analyze" not in cols:
         cur.execute("ALTER TABLE test_results ADD COLUMN final_analyze TEXT")
+    if "voice_path" not in cols:
+        cur.execute("ALTER TABLE test_results ADD COLUMN voice_path TEXT")
+    if "image_path" not in cols:
+        cur.execute("ALTER TABLE test_results ADD COLUMN image_path TEXT")
+    if "html_path" not in cols:
+        cur.execute("ALTER TABLE test_results ADD COLUMN html_path TEXT")
     
     # Create packages tables
     cur.execute("""
@@ -150,13 +158,12 @@ def save_user(chat_id: int, username: str, first_name: str, last_name: str):
     conn.commit()
     conn.close()
 
-def save_test_result(chat_id: int, test_name: str, result_text: str, pdf_path: str, final_analyze: str = None):
+def save_test_result(chat_id: int, test_name: str, result_text: str, pdf_path: str, final_analyze: str = None, voice_path: str = None, image_path: str = None, html_path: str = None):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute(
-        # include final_analyze column in insert; keep backward-compatible by using named columns
-        "INSERT INTO test_results (chat_id, test_name, result_text, pdf_path, final_analyze, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
-        (chat_id, test_name, result_text, pdf_path, final_analyze, time.time())
+        "INSERT INTO test_results (chat_id, test_name, result_text, pdf_path, final_analyze, voice_path, image_path, html_path, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (chat_id, test_name, result_text, pdf_path, final_analyze, voice_path, image_path, html_path, time.time())
     )
     conn.commit()
     conn.close()
@@ -182,11 +189,10 @@ def get_user_tests(chat_id: int):
     return rows
 
 def get_test_result(record_id: int):
-    """Return dict with test_name, result_text, pdf_path and final_analyze for a given record id."""
+    """Return dict with test_name, result_text, pdf_path, final_analyze, voice_path and image_path for a given record id."""
     conn = get_conn()
     cur = conn.cursor()
-    # include final_analyze in select
-    cur.execute('SELECT test_name, result_text, pdf_path, final_analyze FROM test_results WHERE id = ?', (record_id,))
+    cur.execute('SELECT test_name, result_text, pdf_path, final_analyze, voice_path, image_path, html_path FROM test_results WHERE id = ?', (record_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -195,7 +201,10 @@ def get_test_result(record_id: int):
         'test_name': row['test_name'],
         'result_text': row['result_text'],
         'pdf_path': row['pdf_path'],
-        'final_analyze': row['final_analyze']
+        'final_analyze': row['final_analyze'],
+        'voice_path': row['voice_path'],
+        'image_path': row['image_path'],
+        'html_path': row['html_path']
     }
 
 # Package-related functions
@@ -358,8 +367,7 @@ def get_test_result_by_test_id(chat_id: int, test_id: int):
     cur = conn.cursor()
     import psychology_test as pt
     test_name = pt.all_tests["tests"][test_id - 1]["test_name"]
-    # include final_analyze in select
-    cur.execute('SELECT id, test_name, result_text, pdf_path, final_analyze FROM test_results WHERE chat_id = ? AND test_name = ? ORDER BY timestamp DESC LIMIT 1', (chat_id, test_name))
+    cur.execute('SELECT id, test_name, result_text, pdf_path, final_analyze, voice_path, image_path, html_path FROM test_results WHERE chat_id = ? AND test_name = ? ORDER BY timestamp DESC LIMIT 1', (chat_id, test_name))
     row = cur.fetchone()
     conn.close()
     if not row:
@@ -369,7 +377,10 @@ def get_test_result_by_test_id(chat_id: int, test_id: int):
         'test_name': row['test_name'],
         'result_text': row['result_text'],
         'pdf_path': row['pdf_path'],
-        'final_analyze': row['final_analyze']
+        'final_analyze': row['final_analyze'],
+        'voice_path': row['voice_path'],
+        'image_path': row['image_path'],
+        'html_path': row['html_path']
     }
 
 def get_default_psychology_profile() -> dict:
@@ -466,6 +477,24 @@ def save_psychology_profile(chat_id: int, profile_data: dict):
     conn.commit()
     conn.close()
 
+def save_user_profile(chat_id: int, profile_json: str):
+    """Save user profile JSON to database."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('INSERT OR IGNORE INTO users (chat_id) VALUES (?)', (chat_id,))
+    cur.execute('UPDATE users SET user_profile = ? WHERE chat_id = ?', (profile_json, chat_id))
+    conn.commit()
+    conn.close()
+
+def get_user_profile(chat_id: int) -> str:
+    """Get user profile JSON from database."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute('SELECT user_profile FROM users WHERE chat_id = ?', (chat_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row['user_profile'] if row and row['user_profile'] else None
+
 def get_psychology_profile(chat_id: int) -> dict:
     """Retrieve psychology profile for a user.
     
@@ -546,4 +575,32 @@ def get_all_users():
             user_map[cid] = {'chat_id': cid, 'balance': 0, 'username': None, 'first_name': None, 'last_name': None}
     conn.close()
     return list(user_map.values())
+
+def clear_user_data(chat_id: int):
+    """Clear all user data except wallet balance and gift status."""
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Delete test results
+        cur.execute('DELETE FROM test_results WHERE chat_id = ?', (chat_id,))
+        
+        # Delete package tests and packages
+        cur.execute('DELETE FROM package_tests WHERE user_package_id IN (SELECT id FROM user_packages WHERE chat_id = ?)', (chat_id,))
+        cur.execute('DELETE FROM user_packages WHERE chat_id = ?', (chat_id,))
+        
+        # Reset user profile data (keep balance and gift_received)
+        cur.execute('''
+            UPDATE users 
+            SET progress = 0, information = NULL, image = NULL, stars = 0, psychology_profile = NULL
+            WHERE chat_id = ?
+        ''', (chat_id,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"Failed to clear user data for {chat_id}: {e}")
+        return False
+    finally:
+        conn.close()
 

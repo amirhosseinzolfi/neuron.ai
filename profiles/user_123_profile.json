@@ -1,0 +1,34 @@
+{
+  "user_id": "user_123",
+  "name": "John Doe",
+  "age": 28,
+  "occupation": "software engineer",
+  "interests": [
+    "coding",
+    "hiking"
+  ],
+  "contact": {
+    "email": null,
+    "phone": null,
+    "address": null
+  },
+  "physical_attributes": {
+    "hair_color": null,
+    "eye_color": null,
+    "height": null,
+    "build": null
+  },
+  "voice_profile": {
+    "accent": null,
+    "pitch": null,
+    "pace": null,
+    "tone": null
+  },
+  "preferences": {},
+  "bio": "I love coding and hiking.",
+  "extracted_from": [
+    "text"
+  ],
+  "last_updated": "2025-11-05T07:36:19.066675",
+  "confidence": 1.0
+}

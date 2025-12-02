@@ -1,0 +1,31 @@
+# SSH Configuration Optimization Guide
+# Add these settings to your local ~/.ssh/config file (on your client machine)
+
+Host your-server-name
+    HostName your.server.ip.address
+    User your-username
+    Port 22
+    
+    # Connection Keep-Alive Settings
+    ServerAliveInterval 30
+    ServerAliveCountMax 6
+    TCPKeepAlive yes
+    
+    # Connection Optimization
+    Compression yes
+    ControlMaster auto
+    ControlPath ~/.ssh/sockets/%r@%h-%p
+    ControlPersist 600
+    
+    # Performance Settings
+    IPQoS throughput
+    
+    # Reuse connections (speeds up reconnection)
+    Multiplexing yes
+    
+    # Timeout settings
+    ConnectTimeout 60
+
+# Create the sockets directory (run on your local machine):
+# mkdir -p ~/.ssh/sockets
+# chmod 700 ~/.ssh/sockets

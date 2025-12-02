@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProfileExtractorAgentOutput",
+  "type": "object",
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "schema_version": { "type": "string", "pattern": "^v[0-9]+(\\.[0-9]+)*$" },
+        "agent_version": { "type": "string" },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "source_context": { "type": "string", "description": "Brief description of the conversation or documents analyzed." }
+      },
+      "required": ["schema_version", "generated_at"]
+    },
+    "user_profile": {
+      "type": "object",
+      "properties": {
+        "identity": {
+          "type": "object",
+          "properties": {
+            "full_name": { "type": ["string", "null"] },
+            "preferred_name": { "type": ["string", "null"] },
+            "pronouns": { "type": ["string", "null"] },
+            "aliases": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "demographics": {
+          "type": "object",
+          "properties": {
+            "age_range": { "type": ["string", "null"], "description": "e.g., '25-34'." },
+            "birth_date": { "type": ["string", "null"], "format": "date" },
+            "location": { "type": ["string", "null"] },
+            "nationality": { "type": ["string", "null"] },
+            "languages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "language": { "type": "string" },
+                  "proficiency": { "type": ["string", "null"] }
+                },
+                "required": ["language"]
+              }
+            },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "contact": {
+          "type": "object",
+          "properties": {
+            "primary_channel": { "type": ["string", "null"] },
+            "handles": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "platform": { "type": "string" },
+                  "identifier": { "type": "string" },
+                  "notes": { "type": ["string", "null"] }
+                },
+                "required": ["platform", "identifier"]
+              }
+            }
+          }
+        },
+        "professional": {
+          "type": "object",
+          "properties": {
+            "current_role": { "type": ["string", "null"] },
+            "organization": { "type": ["string", "null"] },
+            "industry": { "type": ["string", "null"] },
+            "skills": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "education": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "institution": { "type": "string" },
+                  "degree": { "type": ["string", "null"] },
+                  "field_of_study": { "type": ["string", "null"] },
+                  "year_completed": { "type": ["integer", "null"] }
+                },
+                "required": ["institution"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "interests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "engagement_level": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+          "evidence": { "type": ["string", "null"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["category"]
+      }
+    },
+    "goals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "timeframe": { "type": ["string", "null"], "enum": ["short_term", "medium_term", "long_term", null] },
+          "goal": { "type": "string" },
+          "motivation": { "type": ["string", "null"] },
+          "obstacles": { "type": ["string", "null"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "required": ["goal"]
+      }
+    },
+    "values_and_beliefs": {
+      "type": "object",
+      "properties": {
+        "core_values": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "beliefs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cultural_influences": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "psychology_profile": {
+      "type": "object",
+      "properties": {
+        "personality_traits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "trait": { "type": "string" },
+              "score": { "type": ["number", "null"] },
+              "evidence": { "type": ["string", "null"] },
+              "framework": { "type": ["string", "null"], "description": "e.g., Big Five, MBTI." },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["trait"]
+          }
+        },
+        "emotional_profile": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "emotion": { "type": "string" },
+              "intensity": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+              "triggers": { "type": ["string", "null"] },
+              "coping_mechanisms": { "type": ["string", "null"] },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["emotion"]
+          }
+        },
+        "behavior_patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": { "type": "string" },
+              "context": { "type": ["string", "null"] },
+              "frequency": { "type": ["string", "null"] },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["pattern"]
+          }
+        },
+        "risk_factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "risk": { "type": "string" },
+              "severity": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+              "protective_factors": { "type": ["string", "null"] },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            },
+            "required": ["risk"]
+          }
+        }
+      }
+    },
+    "observations": {
+      "type": "object",
+      "properties": {
+        "notable_quotes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "quote": { "type": "string" },
+              "context": { "type": ["string", "null"] },
+              "timestamp": { "type": ["string", "null"], "format": "date-time" }
+            },
+            "required": ["quote"]
+          }
+        },
+        "interaction_summary": { "type": ["string", "null"] },
+        "unknowns_and_gaps": { "type": ["string", "null"] }
+      }
+    },
+    "tracking": {
+      "type": "object",
+      "properties": {
+        "last_updated": { "type": "string", "format": "date-time" },
+        "update_history": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "updated_at": { "type": "string", "format": "date-time" },
+              "updated_by": { "type": "string" },
+              "change_summary": { "type": ["string", "null"] }
+            },
+            "required": ["updated_at", "updated_by"]
+          }
+        }
+      }
+    }
+  },
+  "required": ["metadata", "user_profile", "psychology_profile"]
+}

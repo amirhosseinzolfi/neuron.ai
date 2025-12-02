@@ -208,18 +208,17 @@ def format_caption_for_telegram(test_name: str, summary_content: str) -> str:
     return full_caption
 
 def send_styled_test_result(update: Update, context: CallbackContext, test_name: str, summary_content: str):
-    """Send formatted test result with separate image, analysis and PDF."""
+    """Send formatted test result with image, voice and PDF only."""
     try:
         # Determine chat id
         chat_id = update.message.chat_id if update.message else update.callback_query.message.chat_id
         
-        # Get paths and required data from context
+        # Get paths from context
         image_path = context.user_data.get("result_image")
         pdf_path = context.user_data.get("result_pdf")
-        # Fallback: use summary_content if result_caption is empty
-        analysis_text = context.user_data.get("result_caption") or summary_content
+        voice_path = context.user_data.get("result_voice")
 
-        # 1. First send the AI-generated personality image with simple caption
+        # 1. Send AI-generated personality image
         if image_path and os.path.exists(image_path):
             send_media_with_caption(
                 context, 
@@ -230,19 +229,17 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
             )
             time.sleep(0.7)
         
-        # 2. Send the ANALYSIS text (not raw summary) in chunks
-        header = ui.ANALYSIS_HEADER.format(test_name=test_name)
-        message_chunks = format_md_for_telegram(analysis_text)  # Use analysis instead of summary
-        for i, chunk in enumerate(message_chunks):
-            full_message = (header + chunk) if i == 0 else chunk
-            context.bot.send_message(
-                chat_id=chat_id,
-                text=full_message,
-                parse_mode=ParseMode.HTML
-            )
+        # 2. Send voice file
+        if voice_path and os.path.exists(voice_path):
+            with open(voice_path, 'rb') as voice_file:
+                context.bot.send_voice(
+                    chat_id=chat_id,
+                    voice=voice_file,
+                    caption="🎙️ آنالیز و تحلیل تست شما"
+                )
             time.sleep(0.7)
         
-        # 3. Finally send PDF (which contains the full raw summary)
+        # 3. Send PDF
         if pdf_path and os.path.exists(pdf_path):
             send_media_with_caption(
                 context,
@@ -251,6 +248,21 @@ def send_styled_test_result(update: Update, context: CallbackContext, test_name:
                 ui.PDF_REPORT_CAPTION.format(test_name=test_name),
                 media_type="document"
             )
+        
+        # 4. Send HTML report link
+        html_url = context.user_data.get("result_html_url")
+        if html_url:
+            html_message = (
+                "📊 برای مشاهده گزارش کامل و تعاملی تست خود روی لینک زیر کلیک کنید:\n\n"
+                f"[🔗 مشاهده تحلیل کامل تست شما]({html_url})\n\n"              
+            )
+            context.bot.send_message(
+                chat_id=chat_id,
+                text=html_message,
+                parse_mode="Markdown",
+                disable_web_page_preview=False
+            )
+            time.sleep(0.5)
         
         return True
 
@@ -356,8 +368,9 @@ def register_handlers(dp):
         ("psychology_tests", handlers.psychology_tests),
         ("my_profile", handlers.my_profile),
         ("wallet", handlers.wallet),
-    ("admin", handlers.admin_panel),
-    ("end_chat", handlers.end_smart_chat)
+        ("admin", handlers.admin_panel),
+        ("end_chat", handlers.end_smart_chat),
+        ("clear_data", handlers.clear_data)
     ]
     
     for command, handler in commands:
@@ -411,6 +424,8 @@ def register_handlers(dp):
         (r"^start_test_\d+$", handlers.start_test_callback),
         ("^show_profile_update_status$", handlers.show_profile_update_status),
         ("^show_psychological_profile$", handlers.show_psychological_profile),
+        ("^confirm_clear_data$", handlers.confirm_clear_data_callback),
+        ("^cancel_clear_data$", handlers.cancel_clear_data_callback),
     ]
     
     for pattern, handler in callback_handlers:
@@ -418,9 +433,19 @@ def register_handlers(dp):
     
     # Message handlers
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handlers.handle_answer), group=1)
-    dp.add_handler(MessageHandler(Filters.photo, handlers.handle_payment_screenshot), group=1)
+    
+    # Multimodal handlers (image and voice)
+    dp.add_handler(MessageHandler(Filters.photo, handlers.handle_multimodal_input), group=1)
+    dp.add_handler(MessageHandler(Filters.voice, handlers.handle_multimodal_input), group=1)
+    
+    # Payment screenshot handler (specific photo context)
+    dp.add_handler(MessageHandler(Filters.photo, handlers.handle_payment_screenshot), group=2)
 
 def main():
+    # Load environment variables
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     # Clear module cache
     import sys
     for module in list(sys.modules.keys()):
@@ -434,7 +459,7 @@ def main():
         console.print(Panel("[bold blue]🧪 Testing Smart Chat Components...[/bold blue]", border_style="blue"))
         
         # Test imports
-        from smart_chat import get_memory, get_chat_agent
+        from app.chat.smart_chat import get_memory, get_chat_agent
         console.log("[green]✅ Smart chat imports successful[/green]")
         
         # Test memory initialization
@@ -458,11 +483,17 @@ def main():
     # NEW: start streamlit UI so operator can watch logs in browser
     start_streamlit_ui_if_needed()
     
-    TOKEN = "8330412252:AAErsNiTYTs9bXlaMZEGIElNh0ytDO3U-Ds"
+    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not TOKEN:
+        logger.error("[bold red]TELEGRAM_BOT_TOKEN not set in .env file![/bold red]")
+        raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
+    
     db.init_db()
     logger.info("[bold blue]Database initialized[/bold blue]")
     
-    updater = Updater(TOKEN, use_context=True)
+    # Enable concurrent processing for multiple users
+    updater = Updater(TOKEN, use_context=True, workers=10)
+    logger.info("[bold cyan]🚀 Concurrent mode enabled: 10 workers[/bold cyan]")
     register_handlers(updater.dispatcher)
 
     # Set bot commands
@@ -471,6 +502,7 @@ def main():
         BotCommand("psychology_tests", "📋 نمایش تست‌های روانشناسی"),
         BotCommand("my_profile", "🕵️ مشاهده نتایج تست‌های قبلی"),
         BotCommand("wallet", "💰 کیف پول من"),
+        BotCommand("clear_data", "🗑️ پاک کردن اطلاعات"),
         BotCommand("admin", "🛠️ پنل مدیریت"),
         BotCommand("end_chat", "🔚 پایان جلسه هوشمند")
     ])

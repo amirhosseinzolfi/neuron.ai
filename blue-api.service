@@ -1,0 +1,15 @@
+[Unit]
+Description=Blue Psychology FastAPI Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/blue-psychology-test
+Environment="PATH=/root/blue-psychology-test/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/root/blue-psychology-test/venv/bin/python /root/blue-psychology-test/run_api.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
