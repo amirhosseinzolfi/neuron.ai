@@ -40,6 +40,11 @@ from ai_utils import (
     update_user_profile_with_ai,
     analyze_final_result
 )
+from app.chat.tools import (
+    create_reminder, refine_reminder, delete_reminder, list_reminders,
+    create_task, refine_task, delete_task, list_tasks,
+    current_user_id
+)
 from image_utils import generate_images_for_prompt
 from pdf_utils import generate_pdf
 
@@ -135,6 +140,33 @@ class PackagePurchase(BaseModel):
     chat_id: int
     package_id: str = Field(..., description="Package identifier")
     test_ids: List[int] = Field(..., description="List of test IDs in the package")
+
+class CreateReminderRequest(BaseModel):
+    title: str
+    datetime_str: str
+    priority: str = "normal"
+    user_id: str
+
+class UpdateReminderRequest(BaseModel):
+    title: Optional[str] = None
+    datetime_str: Optional[str] = None
+    priority: Optional[str] = None
+    user_id: str
+
+class CreateTaskRequest(BaseModel):
+    task_title: str
+    deadline: Optional[str] = None
+    category: str = "general"
+    subtasks: Optional[List[str]] = None
+    user_id: str
+
+class UpdateTaskRequest(BaseModel):
+    task_title: Optional[str] = None
+    deadline: Optional[str] = None
+    category: Optional[str] = None
+    subtasks: Optional[List[str]] = None
+    completed: Optional[bool] = None
+    user_id: str
 
 # ============================================================================
 # HEALTH & INFO ENDPOINTS
@@ -905,6 +937,74 @@ async def ai_update_profile(
     except Exception as e:
         logger.error(f"Error in AI profile update for {chat_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# TOOLS ENDPOINTS
+# ============================================================================
+
+@app.post("/tools/reminders", tags=["Tools"])
+async def api_create_reminder(request: CreateReminderRequest):
+    token = current_user_id.set(request.user_id)
+    try:
+        return create_reminder(request.title, request.datetime_str, request.priority)
+    finally:
+        current_user_id.reset(token)
+
+@app.get("/tools/reminders", tags=["Tools"])
+async def api_list_reminders(user_id: str):
+    token = current_user_id.set(user_id)
+    try:
+        return list_reminders()
+    finally:
+        current_user_id.reset(token)
+
+@app.patch("/tools/reminders/{reminder_id}", tags=["Tools"])
+async def api_update_reminder(reminder_id: str, request: UpdateReminderRequest):
+    token = current_user_id.set(request.user_id)
+    try:
+        return refine_reminder(reminder_id, request.title, request.datetime_str, request.priority)
+    finally:
+        current_user_id.reset(token)
+
+@app.delete("/tools/reminders/{reminder_id}", tags=["Tools"])
+async def api_delete_reminder(reminder_id: str, user_id: str):
+    token = current_user_id.set(user_id)
+    try:
+        return delete_reminder(reminder_id)
+    finally:
+        current_user_id.reset(token)
+
+@app.post("/tools/tasks", tags=["Tools"])
+async def api_create_task(request: CreateTaskRequest):
+    token = current_user_id.set(request.user_id)
+    try:
+        return create_task(request.task_title, request.deadline, request.category, request.subtasks)
+    finally:
+        current_user_id.reset(token)
+
+@app.get("/tools/tasks", tags=["Tools"])
+async def api_list_tasks(user_id: str):
+    token = current_user_id.set(user_id)
+    try:
+        return list_tasks()
+    finally:
+        current_user_id.reset(token)
+
+@app.patch("/tools/tasks/{task_id}", tags=["Tools"])
+async def api_update_task(task_id: str, request: UpdateTaskRequest):
+    token = current_user_id.set(request.user_id)
+    try:
+        return refine_task(task_id, request.task_title, request.deadline, request.category, request.subtasks, request.completed)
+    finally:
+        current_user_id.reset(token)
+
+@app.delete("/tools/tasks/{task_id}", tags=["Tools"])
+async def api_delete_task(task_id: str, user_id: str):
+    token = current_user_id.set(user_id)
+    try:
+        return delete_task(task_id)
+    finally:
+        current_user_id.reset(token)
 
 # ============================================================================
 # APPLICATION STARTUP & SHUTDOWN

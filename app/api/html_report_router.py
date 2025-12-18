@@ -7,39 +7,30 @@ LOG = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["HTML Reports"])
 
-HTML_REPORTS_DIR = Path("html_reports")
+HTML_REPORTS_DIR = Path("/root/blue-psychology-test/reports/html")
 
-@router.get("/html/{user_id}/{report_id}", response_class=HTMLResponse)
-async def get_html_report(user_id: str, report_id: str):
+@router.get("/html/{user_id}/{filename}", response_class=HTMLResponse)
+async def get_html_report(user_id: str, filename: str):
     """
-    Serve HTML report for a specific user and test.
+    Serve HTML report for a specific user and filename.
     
     Args:
         user_id: User's chat ID or identifier
-        report_id: Unique report identifier (timestamp_hash)
+        filename: Full filename of the report (e.g., report_5816681487_1764710756.html)
         
     Returns:
         HTML content of the report
     """
     try:
-        # Find matching report file
-        report_pattern = f"result_report_{report_id}*.html"
-        matching_files = list(HTML_REPORTS_DIR.glob(report_pattern))
+        # Construct the full path to the user's report directory
+        user_reports_dir = HTML_REPORTS_DIR / str(user_id)
+        report_file = user_reports_dir / filename
         
-        if not matching_files:
-            # Try exact match
-            exact_file = HTML_REPORTS_DIR / f"result_report_{report_id}.html"
-            if exact_file.exists():
-                matching_files = [exact_file]
-        
-        if not matching_files:
-            LOG.warning(f"Report not found: {report_id} for user {user_id}")
+        if not report_file.exists():
+            LOG.warning(f"Report not found: {filename} for user {user_id}")
             raise HTTPException(status_code=404, detail="Report not found")
         
-        # Return the first matching file
-        report_file = matching_files[0]
-        
-        LOG.info(f"Serving HTML report: {report_file.name} for user {user_id}")
+        LOG.info(f"Serving HTML report: {filename} for user {user_id}")
         
         # Read and return HTML content
         html_content = report_file.read_text(encoding="utf-8")
@@ -64,15 +55,20 @@ async def get_latest_html_report(user_id: str):
         HTML content of the latest report
     """
     try:
-        # Find all reports (we don't have user_id in filename, so get all)
+        # Find all reports for this specific user
+        user_reports_dir = HTML_REPORTS_DIR / str(user_id)
+        
+        if not user_reports_dir.exists():
+            raise HTTPException(status_code=404, detail="No reports found for this user")
+        
         all_reports = sorted(
-            HTML_REPORTS_DIR.glob("result_report_*.html"),
+            user_reports_dir.glob("*.html"),
             key=lambda p: p.stat().st_mtime,
             reverse=True
         )
         
         if not all_reports:
-            raise HTTPException(status_code=404, detail="No reports found")
+            raise HTTPException(status_code=404, detail="No reports found for this user")
         
         # Return the most recent report
         latest_report = all_reports[0]
@@ -98,33 +94,31 @@ async def list_user_reports(user_id: str):
         user_id: User's chat ID or identifier
         
     Returns:
-        List of available report IDs with metadata
+        List of available report files with metadata
     """
     try:
+        user_reports_dir = HTML_REPORTS_DIR / str(user_id)
+        
+        if not user_reports_dir.exists():
+            return {
+                "user_id": user_id,
+                "total_reports": 0,
+                "reports": []
+            }
+        
         all_reports = sorted(
-            HTML_REPORTS_DIR.glob("result_report_*.html"),
+            user_reports_dir.glob("*.html"),
             key=lambda p: p.stat().st_mtime,
             reverse=True
         )
         
         reports_list = []
         for report_file in all_reports:
-            # Extract report_id from filename: result_report_{timestamp}_{hash}.html
-            filename = report_file.stem  # Remove .html
-            parts = filename.split("_")
-            if len(parts) >= 3:
-                timestamp = parts[2]
-                hash_part = parts[3] if len(parts) > 3 else ""
-                report_id = f"{timestamp}_{hash_part}" if hash_part else timestamp
-            else:
-                report_id = filename
-            
             reports_list.append({
-                "report_id": report_id,
                 "filename": report_file.name,
                 "created_at": report_file.stat().st_mtime,
                 "size_bytes": report_file.stat().st_size,
-                "url": f"/reports/html/{user_id}/{report_id}"
+                "url": f"/reports/html/{user_id}/{report_file.name}"
             })
         
         return {

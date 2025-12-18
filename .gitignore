@@ -1,85 +1,162 @@
+# ============================================
 # Python
+# ============================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
+*.egg
 *.egg-info/
 dist/
 build/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.manifest
+*.spec
 
-# Environment
+# ============================================
+# Virtual Environments
+# ============================================
 .env
-venv/
+.venv
 env/
+venv/
 ENV/
-.venv/
+env.bak/
+venv.bak/
 virtualenv/
+.python-version
 
-# IDE
+# ============================================
+# IDE & Editors
+# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.project
+.pydevproject
+.settings/
 .continue/
 .history/
 *.code-profile
+.DS_Store
 
-# Databases
+# ============================================
+# Databases & Storage
+# ============================================
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
 bot.db*
 psychology_bot.db*
+database/psychology_profiles/*.json
+database/user_profiles/*.json
+!database/psychology_profiles/.gitkeep
+!database/user_profiles/.gitkeep
 
-# Logs
+# ============================================
+# Logs & Monitoring
+# ============================================
 logs/
 *.log
 *.jsonl
 output.log
+*.log.*
+log/
 
-# Generated content
+# ============================================
+# Generated Content & Media
+# ============================================
 generated_images/
 html_reports/
-tools/voice/
+tools/voice/*.wav
+tools/voice/*.mp3
+tools/voice/*.ogg
+!tools/voice/.gitkeep
 output/
-payments/
+payments/*.jpg
+payments/*.png
+!payments/.gitkeep
 test_media/
-
-# Memory & Storage
-memory/
-qdrant_storage/
-storage/
-
-# Profiles & User Data
-database/psychology_profiles/
-database/user_profiles/
-profiles/
-
-# Credentials & Keys
-har_and_cookies/
-*.pem
-*.key
-config/g4f_cookies.json
-
-# Service files
-*.service
-supervisor_*.conf
-
-# Temporary files
-*.tmp
-*.temp
 *.wav
 *.mp3
 *.ogg
-generated_voice.wav
+*.mp4
+*.avi
 
-# Test files
-test_*.py
-*_test.py
-api_test.log
+# ============================================
+# Memory & Vector Storage
+# ============================================
+memory/
+qdrant_storage/
+storage/
+*.faiss
+*.index
 
-# Documentation (keep main README)
+# ============================================
+# User Profiles & Data
+# ============================================
+profiles/*.json
+!profiles/.gitkeep
+reports/html/**/*.html
+!reports/html/.gitkeep
+
+# ============================================
+# Credentials & Secrets
+# ============================================
+.env
+.env.local
+.env.*.local
+har_and_cookies/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+config/g4f_cookies.json
+config/*.json
+!config/.gitkeep
+
+# ============================================
+# Service & Deployment Files
+# ============================================
+*.service
+supervisor_*.conf
+*.pid
+*.sock
+
+# ============================================
+# Temporary Files
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# ============================================
+# Documentation (Generated)
+# ============================================
 *_SUMMARY.md
 *_IMPLEMENTATION.md
 *_FIXES.md
@@ -87,12 +164,65 @@ api_test.log
 CURL_QUICK_REFERENCE.txt
 INTEGRATION_SUMMARY.txt
 ssh_config_optimization.txt
+VSCODE_SSH_OPTIMIZATION.md
+HTML_REPORT_IMPLEMENTATION.md
+PROFILE_EXTRACTOR_FIXES.md
+PROFILE_FIX_SUMMARY.md
+TIMEOUT_CHANGES.md
+LONG_TERM_MEMORY.md
 
-# Scripts (keep essential ones)
-*.sh
-!setup_env.sh
-!install_service.sh
+# ============================================
+# Test Files (Keep test directory structure)
+# ============================================
+tests/test_media/*.jpg
+tests/test_media/*.png
+tests/test_media/*.ogg
+tests/test_media/*.wav
+!tests/test_media/.gitkeep
 
-# Frontend build
-src/
+# ============================================
+# Scripts (Exclude temporary/generated)
+# ============================================
+APPLY_FIX.sh
+apply_*.sh
+fix_*.sh
+
+# ============================================
+# Frontend & Build
+# ============================================
+src/store/
 frontend/node_modules/
+frontend/dist/
+frontend/build/
+*.bundle.js
+*.chunk.js
+
+# ============================================
+# External Libraries (ble.sh)
+# ============================================
+ble.sh/
+
+# ============================================
+# OS Specific
+# ============================================
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ============================================
+# Jupyter Notebooks
+# ============================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ============================================
+# Package Manager
+# ============================================
+poetry.lock
+Pipfile.lock
+package-lock.json
+yarn.lock

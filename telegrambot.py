@@ -396,6 +396,7 @@ def register_handlers(dp):
         # Main menu
         ("^psychology_tests$", handlers.show_tests_cb),
         ("^my_profile$", handlers.show_profile_cb),
+        ("^show_user_memory$", handlers.show_user_memory),
         ("^previous_test_results$", handlers.previous_test_results_cb),
         ("^purchased_packages$", handlers.purchased_packages_callback),
         ("^wallet_info$", handlers.wallet_info_callback),

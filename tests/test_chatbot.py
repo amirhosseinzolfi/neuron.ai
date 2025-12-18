@@ -115,7 +115,7 @@ def main_chat_loop():
     logging.info(f"Initializing ChatBot LLM with model: {selected_model_name}")
     try:
         llm = ChatOpenAI(
-            base_url="http://localhost:1555/v1",
+            base_url="http://46.249.101.240:15203/v1",
             model_name=selected_model_name,
             temperature=0.5,
             api_key="11"  # replace with a valid key if needed

@@ -1,12 +1,17 @@
-# Core Framework
+# ============================================
+# Core Framework & Web
+# ============================================
 python-telegram-bot==13.15
-fastapi==0.115.14
+fastapi==0.123.4
 uvicorn==0.38.0
-pydantic==2.12.4
+starlette==0.50.0
+pydantic==2.12.5
 pydantic_core==2.41.5
-starlette==0.46.2
+python-multipart==0.0.20
 
-# AI & LLM
+# ============================================
+# AI & LLM Framework
+# ============================================
 langchain==1.1.0
 langchain-core==1.1.0
 langchain-openai==1.1.0
@@ -16,94 +21,127 @@ langgraph==1.0.4
 langgraph-checkpoint==3.0.1
 langgraph-checkpoint-sqlite==3.0.0
 langgraph-prebuilt==1.0.5
-langgraph-sdk==0.2.10
-langsmith==0.4.49
+langgraph-sdk==0.2.12
+langsmith==0.4.50
+
+# ============================================
+# AI Models & APIs
+# ============================================
 g4f==6.6.7
 openai==2.8.1
 ollama==0.6.1
+google-ai-generativelanguage==0.9.0
+google-genai==1.52.0
+google-api-core==2.28.1
+google-auth==2.43.0
+googleapis-common-protos==1.72.0
 tiktoken==0.12.0
+tokenizers==0.22.1
 
-# Memory & Vector DB
+# ============================================
+# Memory & Vector Database
+# ============================================
 mem0ai==0.1.115
 qdrant-client==1.16.1
 chromadb==1.3.5
 sqlite-vec==0.1.6
 
-# Database
-sqlalchemy==2.0.44
+# ============================================
+# Database & ORM
+# ============================================
+SQLAlchemy==2.0.44
 aiosqlite==0.21.0
 
-# Document Processing
+# ============================================
+# Document Processing & PDF
+# ============================================
 markdown2==2.5.4
-weasyprint==66.0
+weasyprint==67.0
 arabic-reshaper==3.0.0
 python-bidi==0.6.7
 pyphen==0.17.2
-pydyf==0.12.0
+pydyf==0.12.1
 tinycss2==1.5.1
 tinyhtml5==2.0.0
 cssselect2==0.8.0
+brotli==1.2.0
 
+# ============================================
 # Image Processing
+# ============================================
 pillow==12.0.0
 fonttools==4.61.0
 
+# ============================================
 # HTTP & Networking
+# ============================================
 httpx==0.28.1
 httpcore==1.0.9
 aiohttp==3.13.2
+aiohappyeyeballs==2.6.1
+aiosignal==1.4.0
 requests==2.32.5
 urllib3==1.26.20
 certifi==2025.11.12
 h11==0.16.0
 h2==4.3.0
+hpack==4.1.0
 httptools==0.7.1
+websocket-client==1.9.0
+websockets==15.0.1
 
-# Utilities
+# ============================================
+# Utilities & CLI
+# ============================================
 python-dotenv==1.2.1
-python-multipart==0.0.20
 coloredlogs==15.0.1
 humanfriendly==10.0
 rich==14.2.0
-click==8.3.1
+click==8.1.8
 typer==0.20.0
-backoff==2.2.2
+typer-slim==0.20.0
+backoff==2.2.1
 tenacity==9.1.2
 filelock==3.20.0
 portalocker==3.2.0
 
-# Data Processing
+# ============================================
+# Data Processing & Analysis
+# ============================================
 pandas==2.3.3
 numpy==2.3.5
 pyarrow==21.0.0
 narwhals==2.13.0
 
-# ML & AI Tools
+# ============================================
+# Machine Learning
+# ============================================
 scikit-learn==1.7.2
-scipy==1.16.3
+scipy==1.16.2
 joblib==1.5.2
-tokenizers==0.22.1
+onnxruntime==1.23.2
 huggingface_hub==1.1.7
 
-# Web UI
+# ============================================
+# Web UI & Visualization
+# ============================================
 streamlit==1.51.0
 altair==5.5.0
 pydeck==0.9.1
 watchdog==6.0.0
+graphviz==0.21
 
+# ============================================
 # Scheduling & Background Tasks
+# ============================================
 APScheduler==3.6.3
 nest-asyncio==1.6.0
 
-# Google APIs
-google-ai-generativelanguage==0.9.0
-google-api-core==2.28.1
-google-auth==2.43.0
-googleapis-common-protos==1.72.0
+# ============================================
+# gRPC & Telemetry
+# ============================================
 grpcio==1.76.0
 grpcio-status==1.76.0
-
-# Telemetry
 opentelemetry-api==1.38.0
 opentelemetry-sdk==1.38.0
 opentelemetry-exporter-otlp-proto-grpc==1.38.0
@@ -111,7 +149,9 @@ opentelemetry-proto==1.38.0
 opentelemetry-semantic-conventions==0.59b0
 posthog==5.4.0
 
-# Serialization & Data
+# ============================================
+# Serialization & Data Formats
+# ============================================
 orjson==3.11.4
 ormsgpack==1.12.0
 jsonpatch==1.33
@@ -121,7 +161,9 @@ jsonschema-specifications==2025.9.1
 PyYAML==6.0.3
 toml==0.10.2
 
+# ============================================
 # Cryptography & Security
+# ============================================
 pycryptodome==3.23.0
 bcrypt==5.0.0
 pyasn1==0.6.1
@@ -129,35 +171,54 @@ pyasn1_modules==0.4.2
 rsa==4.9.1
 oauthlib==3.3.1
 requests-oauthlib==2.0.0
+cffi==2.0.0
+pycparser==2.23
 
-# Compression
-brotli==1.2.0
+# ============================================
+# Compression & Hashing
+# ============================================
 zopfli==0.4.0
 zstandard==0.25.0
-
-# Hashing
 mmh3==5.2.0
 xxhash==3.6.0
+pybase64==1.4.2
 
-# Kubernetes
+# ============================================
+# Kubernetes & Cloud
+# ============================================
 kubernetes==34.1.0
 
+# ============================================
 # Git Integration
+# ============================================
 GitPython==3.1.45
 gitdb==4.0.12
 
+# ============================================
 # Build Tools
+# ============================================
 build==1.3.0
 setuptools==80.9.0
+pyproject_hooks==1.2.0
 
+# ============================================
 # Testing
+# ============================================
 pytest==9.0.1
 pytest-asyncio==1.3.0
 pytest-mock==3.15.1
 
-# Other Dependencies
+# ============================================
+# Text-to-Speech
+# ============================================
+gTTS==2.5.4
+
+# ============================================
+# Core Dependencies
+# ============================================
 annotated-types==0.7.0
-anyio==4.11.0
+annotated-doc==0.0.4
+anyio==4.12.0
 attrs==25.4.0
 blinker==1.9.0
 cachetools==4.2.2
@@ -169,7 +230,7 @@ flatbuffers==25.9.23
 frozenlist==1.8.0
 fsspec==2025.10.0
 greenlet==3.2.4
-hpack==4.1.0
+hf-xet==1.2.0
 hyperframe==6.1.0
 idna==3.11
 importlib_metadata==8.7.0
@@ -182,18 +243,14 @@ MarkupSafe==3.0.3
 mdurl==0.1.2
 mpmath==1.3.0
 multidict==6.7.0
-onnxruntime==1.23.2
 overrides==7.7.0
 packaging==25.0
 pluggy==1.6.0
 propcache==0.4.1
 proto-plus==1.26.1
 protobuf==6.33.1
-pybase64==1.4.2
-pycparser==2.23
 Pygments==2.19.2
 PyPika==0.48.9
-pyproject_hooks==1.2.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
 referencing==0.37.0
@@ -214,13 +271,6 @@ tzdata==2025.2
 tzlocal==5.3.1
 watchfiles==1.1.1
 webencodings==0.5.1
-websocket-client==1.9.0
-websockets==15.0.1
 yarl==1.22.0
 zipp==3.23.0
-cffi==2.0.0
-aiohappyeyeballs==2.6.1
-aiosignal==1.4.0
-annotated-doc==0.0.4
-hf-xet==1.2.0
 uvloop==0.22.1

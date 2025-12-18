@@ -31,6 +31,7 @@ from utils import chat_states, admin_only, escape_markdown_v2, ADMINS
 from telegram_text_optimizer import optimize_for_telegram
 from ai_utils import generate_final_result_analyze_voice
 from pathlib import Path
+from app.services.memory_service import get_memory_service
 
 # Console for rich logging
 console = Console()
@@ -517,11 +518,14 @@ def clear_data(update: Update, context: CallbackContext):
         "• نتایج تمام تستها\n"
         "• پکیجهای خریداری شده\n"
         "• پروفایل روانشناسی\n"
-        "• تاریخچه گفتگو\n\n"
+        "• تاریخچه گفتگو و پیامهای هوشمند\n"
+        "• حافظه بلندمدت (Mem0)\n\n"
         "<b>موارد حفظ شده:</b>\n"
         "• موجودی کیف پول 💰\n"
         "• وضعیت دریافت هدیه 🎁\n\n"
-        "این عملیات قابل بازگشت نیست!",
+        "🔄 <b>پس از پاک کردن:</b>\n"
+        "جلسه گفتگوی هوشمند به طور کامل ریست میشود و یک جلسه جدید شروع خواهد شد.\n\n"
+        "⚠️ این عملیات قابل بازگشت نیست!",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -533,16 +537,76 @@ def confirm_clear_data_callback(update: Update, context: CallbackContext):
     cid = query.message.chat_id
     
     console.log(f"[red]Clearing data for user {cid}[/red]")
+    
+    # Clear user data (tests, packages, profile)
     success = db.clear_user_data(cid)
     
+    # Clear smart chat history from LangGraph checkpointer
+    chat_history_cleared = False
+    try:
+        memory = get_memory()
+        conn = memory.conn
+        cursor = conn.cursor()
+        
+        # Delete writes for this thread
+        cursor.execute("DELETE FROM writes WHERE thread_id = ?", (str(cid),))
+        writes_deleted = cursor.rowcount
+        
+        # Delete checkpoints for this thread
+        cursor.execute("DELETE FROM checkpoints WHERE thread_id = ?", (str(cid),))
+        checkpoints_deleted = cursor.rowcount
+        
+        conn.commit()
+        chat_history_cleared = True
+        console.log(f"[green]✅ Smart chat history cleared ({checkpoints_deleted} checkpoints, {writes_deleted} writes) for user {cid}[/green]")
+    except Exception as e:
+        console.log(f"[yellow]⚠️ Failed to clear chat history: {e}[/yellow]")
+        logger.error(f"Chat history clear error for {cid}: {e}", exc_info=True)
+    
+    # Clear Mem0 long-term memories
+    memories_cleared = False
+    try:
+        memory_service = get_memory_service()
+        if memory_service.mem0_enabled and memory_service.mem0_client:
+            # Delete all memories for this user
+            memory_service.mem0_client.delete_all(user_id=str(cid))
+            memories_cleared = True
+            console.log(f"[green]✅ Mem0 memories cleared for user {cid}[/green]")
+    except Exception as e:
+        console.log(f"[yellow]⚠️ Failed to clear Mem0 memories: {e}[/yellow]")
+        logger.error(f"Mem0 clear error for {cid}: {e}")
+    
+    # Clear smart chat active state and force new session
+    if context.user_data.get("smart_chat_active"):
+        context.user_data["smart_chat_active"] = False
+    
+    # Clear all user_data to force fresh session
+    context.user_data.clear()
+    
+    # Clear chat_states if user has active test/flow
+    if cid in chat_states:
+        del chat_states[cid]
+    
+    console.log(f"[green]✅ Smart chat session ended and reset for user {cid}[/green]")
+    
     if success:
-        query.edit_message_text(
-            "✅ <b>اطلاعات شما با موفقیت پاک شد!</b>\n\n"
-            "ربات به حالت اولیه بازگشت.\n"
-            "موجودی کیف پول شما حفظ شده است.\n\n"
-            "برای شروع مجدد از منوی اصلی استفاده کنید.",
-            parse_mode=ParseMode.HTML
-        )
+        status_msg = "✅ <b>اطلاعات شما با موفقیت پاک شد!</b>\n\n"
+        status_msg += "<b>موارد پاک شده:</b>\n"
+        status_msg += "• نتایج تستها ✅\n"
+        status_msg += "• پکیجهای خریداری شده ✅\n"
+        status_msg += "• پروفایل روانشناسی ✅\n"
+        if chat_history_cleared:
+            status_msg += "• تاریخچه گفتگوی هوشمند ✅\n"
+        if memories_cleared:
+            status_msg += "• حافظه بلندمدت (Mem0) ✅\n"
+        status_msg += "\n<b>موارد حفظ شده:</b>\n"
+        status_msg += "• موجودی کیف پول 💰\n"
+        status_msg += "• وضعیت دریافت هدیه 🎁\n\n"
+        status_msg += "🔄 <b>جلسه جدید:</b>\n"
+        status_msg += "گفتگوی هوشمند به طور کامل ریست شد. جلسه بعدی با حافظه تمیز شروع خواهد شد.\n\n"
+        status_msg += "ربات به حالت اولیه بازگشت. برای شروع مجدد از منوی اصلی استفاده کنید."
+        
+        query.edit_message_text(status_msg, parse_mode=ParseMode.HTML)
         console.log(f"[green]Data cleared successfully for user {cid}[/green]")
     else:
         query.edit_message_text(
@@ -991,6 +1055,7 @@ def my_profile(update: Update, context: CallbackContext):
     
     keyboard = [
         [InlineKeyboardButton("👤 پروفایل روانشناسی کاربر", callback_data="show_psychological_profile")],
+        [InlineKeyboardButton("🧠 حافظه", callback_data="show_user_memory")],
         [InlineKeyboardButton("📚 نتایج تست‌های قبلی", callback_data="previous_test_results"),
          InlineKeyboardButton("🧠 پکیج‌های خریداری شده", callback_data="purchased_packages")],
         [InlineKeyboardButton("💰 کیف پول من", callback_data="wallet_info"),
@@ -999,6 +1064,38 @@ def my_profile(update: Update, context: CallbackContext):
     ]
     
     safe_edit_message(update, context, intro_text, InlineKeyboardMarkup(keyboard))
+
+def show_user_memory(update: Update, context: CallbackContext):
+    """Show all user saved memories."""
+    query = update.callback_query
+    query.answer()
+    cid = query.message.chat_id
+    
+    memory_service = get_memory_service()
+    
+    # Fetch memories
+    try:
+        memories = memory_service.list_memories(str(cid))
+    except Exception as e:
+        logger.error(f"Error fetching memories for {cid}: {e}")
+        safe_edit_message(update, context, "❌ خطا در بازیابی حافظه.")
+        return
+    
+    if not memories:
+        keyboard = [[InlineKeyboardButton("🔙 بازگشت به پروفایل", callback_data="my_profile")]]
+        safe_edit_message(update, context, "📭 حافظه شما خالی است.", InlineKeyboardMarkup(keyboard))
+        return
+
+    # Format memories
+    memory_text = "🧠 <b>حافظه ذخیره شده شما:</b>\n\n"
+    for i, mem in enumerate(memories, 1):
+        content = mem.get('memory', '').strip()
+        date = mem.get('created_at', '').split('T')[0] if mem.get('created_at') else 'نامشخص'
+        memory_text += f"{i}. {content}\n📅 <i>{date}</i>\n\n"
+        
+    keyboard = [[InlineKeyboardButton("🔙 بازگشت به پروفایل", callback_data="my_profile")]]
+    
+    safe_edit_message(update, context, memory_text, InlineKeyboardMarkup(keyboard))
 
 def show_psychological_profile(update: Update, context: CallbackContext):
     """Show user's psychological profile information from structured JSON."""
@@ -2541,15 +2638,9 @@ def handle_answer(update: Update, context: CallbackContext):
                     if html_path:
                         result_data["html_path"] = html_path
                         # Generate URL for HTML report
-                        import hashlib
                         from pathlib import Path
-                        filename = Path(html_path).stem
-                        parts = filename.split("_")
-                        if len(parts) >= 3:
-                            report_id = "_".join(parts[2:])
-                        else:
-                            report_id = filename
-                        result_data["html_url"] = f"http://141.98.210.15:15800/reports/html/{cid}/{report_id}"
+                        filename = Path(html_path).name  # Get full filename with .html extension
+                        result_data["html_url"] = f"http://46.249.101.240:15800/reports/html/{cid}/{filename}"
                         console.log(f"[green]✅ HTML report generated: {html_path}[/green]")
                         console.log(f"[cyan]📎 HTML URL: {result_data['html_url']}[/cyan]")
                 except Exception as html_e:

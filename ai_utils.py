@@ -18,11 +18,14 @@ import os
 import time
 import uuid
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from logging.handlers import RotatingFileHandler
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
+
+from dotenv import load_dotenv, find_dotenv
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -40,6 +43,24 @@ from prompts import (
     PROFILE_UPDATER_SYSTEM,
     PROFILE_UPDATER_PROMPT_TEMPLATE,
 )
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def _load_environment() -> bool:
+    """Load the closest .env file (project-level first, then cwd search)."""
+    env_candidates = (
+        find_dotenv(str(BASE_DIR / ".env"), raise_error_if_not_found=False),
+        find_dotenv(raise_error_if_not_found=False),
+    )
+    for candidate in env_candidates:
+        if candidate and load_dotenv(candidate, override=False):
+            return True
+    return load_dotenv(override=False)
+
+
+_loaded_env = _load_environment()
+
 
 # -----------------------------------------------------------------------------
 # Logging (JSONL telemetry)
@@ -86,123 +107,109 @@ def _write_event(event: Dict[str, Any]) -> None:
 # -----------------------------------------------------------------------------
 
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "http://localhost:15207/v1")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "AIzaSyB3snkod5frJEloSQlhI1Son3ny04rCozQ")
-SECONDARY_OPENAI_API_KEY = os.getenv("SECONDARY_OPENAI_API_KEY", "AIzaSyDB4gyowTXD_5w6Eyv7qer3qa0JuEntXNg")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gemini-2.5-flash")
+
+
+def _resolve_api_keys(specs: Dict[str, Tuple[str, ...]]) -> Dict[str, str]:
+    resolved: Dict[str, str] = {}
+    for alias, candidates in specs.items():
+        for env_name in candidates:
+            value = os.getenv(env_name)
+            if value:
+                resolved[alias] = value
+                break
+        else:
+            pretty = " or ".join(candidates)
+            raise RuntimeError(f"Missing API key: {pretty}. Please update your environment variables or .env file.")
+    return resolved
+
+
+_API_KEY_SPECS: Dict[str, Tuple[str, ...]] = {
+    "GOOGLE_API_KEY_PRIMARY": ("GOOGLE_API_KEY_PRIMARY", "GOOGLE_API_KEY"),
+    "GOOGLE_API_KEY_SECONDARY": ("GOOGLE_API_KEY_SECONDARY", "GOOGLE_API_KEY_PRIMARY", "GOOGLE_API_KEY"),
+    "GOOGLE_API_KEY_ANALYZE": (
+        "GOOGLE_API_KEY_ANALYZE",
+        "GOOGLE_API_KEY_SECONDARY",
+        "GOOGLE_API_KEY_PRIMARY",
+        "GOOGLE_API_KEY",
+    ),
+    "GOOGLE_API_KEY_IMAGE": ("GOOGLE_API_KEY_IMAGE", "GOOGLE_API_KEY_PRIMARY", "GOOGLE_API_KEY"),
+    "GOOGLE_API_KEY_HISTORY": (
+        "GOOGLE_API_KEY_HISTORY",
+        "GOOGLE_API_KEY_ANALYZE",
+        "GOOGLE_API_KEY_PRIMARY",
+        "GOOGLE_API_KEY",
+    ),
+    "GOOGLE_API_KEY_NEURON": (
+        "GOOGLE_API_KEY_NEURON",
+        "GOOGLE_API_KEY_SECONDARY",
+        "GOOGLE_API_KEY_PRIMARY",
+        "GOOGLE_API_KEY",
+    ),
+}
+
+_RESOLVED_KEYS = _resolve_api_keys(_API_KEY_SPECS)
+
+GOOGLE_API_KEY_PRIMARY = _RESOLVED_KEYS["GOOGLE_API_KEY_PRIMARY"]
+GOOGLE_API_KEY_SECONDARY = _RESOLVED_KEYS["GOOGLE_API_KEY_SECONDARY"]
+GOOGLE_API_KEY_ANALYZE = _RESOLVED_KEYS["GOOGLE_API_KEY_ANALYZE"]
+GOOGLE_API_KEY_IMAGE = _RESOLVED_KEYS["GOOGLE_API_KEY_IMAGE"]
+GOOGLE_API_KEY_HISTORY = _RESOLVED_KEYS["GOOGLE_API_KEY_HISTORY"]
+GOOGLE_API_KEY_NEURON = _RESOLVED_KEYS["GOOGLE_API_KEY_NEURON"]
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or GOOGLE_API_KEY_PRIMARY
+SECONDARY_OPENAI_API_KEY = os.getenv("SECONDARY_OPENAI_API_KEY") or GOOGLE_API_KEY_SECONDARY
+OPENAI_MODEL = "gemini-flash-latest"
 
 HISTORY_TRIM_THRESHOLD = int(os.getenv("AI_HISTORY_TRIM_THRESHOLD", "15"))
 HISTORY_RETENTION = int(os.getenv("AI_HISTORY_RETENTION", "5"))
 SUMMARY_INTERVAL = int(os.getenv("AI_HISTORY_SUMMARY_INTERVAL", "5"))
 
-# @lru_cache(maxsize=1)
-# def get_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyB3snkod5frJEloSQlhI1Son3ny04rCozQ")
-
-
-# @lru_cache(maxsize=1)
-# def get_summurize_result_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyA-CPg2BoMYTPbF9HIBqWJgxMZPJ7oaMeU")
-# @lru_cache(maxsize=1)
-# def get_analyze_result_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBNnEM-PPOwiA21fIJ2MA1WNGWLiohf91o")
-
-# @lru_cache(maxsize=1)
-# def get_image_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyAJfjmNN0J21MSpifLTK5mDmdOBq-3OzCM")
-# @lru_cache(maxsize=1)
-# def get_history_summurize_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyBAHu5yR3ooMkyVyBmdFxw-8lWyaExLjjE")
-
-# @lru_cache(maxsize=1)
-# def get_neuron_llm() -> ChatGoogleGenerativeAI:
-#     LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
-#     return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key="AIzaSyDhOV5UKGdh0xspf3yTzgd2pFfIXVU0CJY")
-# @lru_cache(maxsize=1)
-# def get_g4f_llm() -> ChatOpenAI:
-#     """Use local G4F server to avoid API quota limits"""
-#     LOG.info(f"Summary LLM init: Using local G4F server")
-#     return ChatOpenAI(
-#         base_url="http://localhost:15203/v1",
-#         model_name="gpt-4o-mini",  # or any model from your test_chatbot.py list
-#         temperature=0.6,
-#         api_key="s33"  # G4F doesn't validate this
-#     )
-
-
-# -----------------------------------------------------------------------------
-# LLM (singleton)
-# -----------------------------------------------------------------------------
 @lru_cache(maxsize=1)
-def get_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"LLM init: Using local G4F server")
-    return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
-        temperature=0.6,
-        api_key="s33"
-    )
+def get_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=OPENAI_API_KEY)
 
 
 @lru_cache(maxsize=1)
-def get_summurize_result_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"Summary LLM init: Using local G4F server")
+def get_memory_llm() -> ChatOpenAI:
+    """Use local G4F server for image prompt generation to avoid API quota limits"""
+    LOG.info(f"memory LLM init: Using local G4F server")
     return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
+        base_url="http://46.249.101.240:15203/v1",
+        model_name="gpt-4o-mini",  # or any model from your test_chatbot.py list
         temperature=0.6,
-        api_key="s33"
+        api_key="s33"  # G4F doesn't validate this
     )
-
+    
 @lru_cache(maxsize=1)
-def get_analyze_result_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"Analyze LLM init: Using local G4F server")
-    return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
-        temperature=0.6,
-        api_key="s33"
-    )
-
+def get_summurize_result_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"summurize result LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=GOOGLE_API_KEY_SECONDARY)
+@lru_cache(maxsize=1)
+def get_analyze_result_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"anlayze LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=GOOGLE_API_KEY_ANALYZE)
 @lru_cache(maxsize=1)
 def get_image_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"Image LLM init: Using local G4F server")
+    """Use local G4F server for image prompt generation to avoid API quota limits"""
+    LOG.info(f"image LLM init: Using local G4F server")
     return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
+        base_url="http://46.249.101.240:15203/v1",
+        model_name="gpt-4o-mini",  # or any model from your test_chatbot.py list
         temperature=0.6,
-        api_key="s33"
+        api_key="s33"  # G4F doesn't validate this
     )
+    
+@lru_cache(maxsize=1)
+def get_history_summurize_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"history summurize LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model=OPENAI_MODEL, temperature=0.6, api_key=GOOGLE_API_KEY_HISTORY)
 
 @lru_cache(maxsize=1)
-def get_history_summurize_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"History Summary LLM init: Using local G4F server")
-    return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
-        temperature=0.6,
-        api_key="s33"
-    )
-
-@lru_cache(maxsize=1)
-def get_neuron_llm() -> ChatOpenAI:
-    """Use local G4F server to avoid API quota limits"""
-    LOG.info(f"Neuron LLM init: Using local G4F server")
-    return ChatOpenAI(
-        base_url="http://localhost:15203/v1",
-        model_name="gpt-4o-mini",
-        temperature=0.6,
-        api_key="s33"
-    )
+def get_neuron_llm() -> ChatGoogleGenerativeAI:
+    LOG.info(f"Secondary LLM init: model={OPENAI_MODEL}")
+    return ChatGoogleGenerativeAI(model="models/gemini-flash-lite-latest", temperature=0.6, api_key=GOOGLE_API_KEY_NEURON)
+   
 @lru_cache(maxsize=1)
 def get_g4f_llm() -> ChatOpenAI:
     """Use local G4F server to avoid API quota limits"""
@@ -213,6 +220,7 @@ def get_g4f_llm() -> ChatOpenAI:
         temperature=0.6,
         api_key="s33"  # G4F doesn't validate this
     )
+
 
 
 # -----------------------------------------------------------------------------
@@ -348,10 +356,16 @@ def handle_history_summarization(state: Dict[str, Any]) -> None:
             pass
 
 
-def update_user_profile_with_ai(chat_id: int, test_result_text: str):
+def update_user_profile_with_ai(chat_id: int, test_result_text: str, conversation_history: Optional[List] = None, state: Optional[Dict] = None):
     """
     Updates a user's profile using AI by combining their current information
     with new test results, with detailed terminal logging.
+    
+    Args:
+        chat_id: User's chat ID
+        test_result_text: Summary of test results
+        conversation_history: Optional conversation history (for compatibility)
+        state: Optional state dict (for compatibility)
     """
     console = Console()
     console.rule(f"[bold blue]🤖 AI Profile Update for chat_id: {chat_id}", style="blue")
@@ -380,7 +394,7 @@ def update_user_profile_with_ai(chat_id: int, test_result_text: str):
         
         console.log("[yellow]Invoking LLM for profile update...[/yellow]")
         response = llm.invoke([system_message, human_message])
-        updated_info = response.content.strip()
+        updated_info = extract_text_from_response(response.content if hasattr(response, 'content') else response)
 
         # 4. Log the interaction in tables
         # Table for before and after
@@ -442,16 +456,56 @@ def build_default_question_text(user_name: str, question: str, options: List[Any
     return f"{head}\n\nگزینه‌ها:\n{lines}\n\nلطفاً شماره گزینه یا متن آن را بفرستید."
 
 
+def extract_text_from_response(response: Any) -> str:
+    """Extract plain text from any LLM response format (handles Gemini dict responses)."""
+    if response is None:
+        return ""
+    
+    # Handle dict response with 'text' field (Gemini format)
+    if isinstance(response, dict):
+        if 'text' in response:
+            return str(response['text']).strip()
+        # If it's a dict but no 'text' field, convert to string
+        return str(response).strip()
+    
+    # Handle list responses
+    if isinstance(response, list):
+        # Try to extract text from list items
+        texts = []
+        for item in response:
+            if isinstance(item, dict) and 'text' in item:
+                texts.append(str(item['text']))
+            else:
+                texts.append(str(item))
+        return ' '.join(texts).strip()
+    
+    # Handle string responses
+    return str(response).strip()
+
+
 def extract_json(payload: str) -> Optional[Dict[str, Any]]:
     s = (payload or "").strip()
+    
+    # Handle dict response with 'text' field (Gemini format)
+    if isinstance(payload, dict):
+        if 'text' in payload:
+            s = payload['text']
+        else:
+            return payload if isinstance(payload, dict) else None
+    
+    # Try direct JSON parse
     try:
         data = json.loads(s)
         return data if isinstance(data, dict) else None
     except Exception:
         pass
+    
+    # Try extracting from code blocks
     if "```" in s:
         for part in s.split("```"):
             part = part.strip()
+            if not part or part.startswith('json'):
+                part = part.replace('json', '', 1).strip()
             if not part:
                 continue
             try:
@@ -460,6 +514,8 @@ def extract_json(payload: str) -> Optional[Dict[str, Any]]:
                     return data
             except Exception:
                 continue
+    
+    # Try extracting JSON from string
     try:
         start = s.index("{"); end = s.rfind("}")
         if start >= 0 and end > start:
@@ -518,7 +574,8 @@ def get_ai_response(state: Dict[str, Any], additional_prompt: Optional[str] = No
 
     _write_event({"type": "ai_generic_request", "msgs": len(messages)})
     try:
-        resp = llm.invoke(messages).content.strip()
+        response = llm.invoke(messages)
+        resp = extract_text_from_response(response.content if hasattr(response, 'content') else response)
         add_message(state, "assistant", resp, context="ai_generic_response", persist_jsonl=True)
         _store_last_debug(
             state, call="get_ai_response", system=system_text, user=(additional_prompt or ""), messages=len(messages), response=resp
@@ -566,7 +623,8 @@ def process_question_turn(
 
     raw_resp = ""
     try:
-        raw_resp = llm.invoke(messages).content.strip()
+        response = llm.invoke(messages)
+        raw_resp = extract_text_from_response(response.content if hasattr(response, 'content') else response)
         data = extract_json(raw_resp) or {}
         _write_event({"type": "process_question_turn_response", "q": qnum, "raw_len": len(raw_resp)})
     except Exception as e:
@@ -697,7 +755,8 @@ def summarize_results(state: Dict[str, Any], results: Dict[str, Any]) -> str:
     system_text = RESULT_CHATBOT_PERSONA
     raw_resp = ""
     try:
-        raw_resp = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=prompt_final)]).content.strip()
+        response = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=prompt_final)])
+        raw_resp = extract_text_from_response(response.content if hasattr(response, 'content') else response)
         _write_event({"type": "final_summary", "answers_count": len(answers_list), "chars": len(raw_resp), "had_summary": bool(conv_summary)})
         return raw_resp
     except Exception as e:
@@ -715,7 +774,8 @@ def generate_image_prompt(summary: str) -> str:
     user_text = IMAGE_PROMPT_GENERATION_TEMPLATE.format(summary_text=summary)
     raw_resp = ""
     try:
-        raw_resp = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=user_text)]).content.strip()
+        response = llm.invoke([SystemMessage(content=system_text), HumanMessage(content=user_text)])
+        raw_resp = extract_text_from_response(response.content if hasattr(response, 'content') else response)
         return raw_resp
     except Exception as e:
         LOG.error(f"generate_image_prompt failed: {e}")
@@ -757,11 +817,11 @@ def analyze_final_result(state: Dict[str, Any], final_text: str) -> str:
 
     raw_resp = ""
     try:
-        raw_resp = llm.invoke([
+        response = llm.invoke([
             SystemMessage(content=system_text),
             HumanMessage(content=prompt)
-        ]).content.strip()
-        
+        ])
+        raw_resp = extract_text_from_response(response.content if hasattr(response, 'content') else response)
         _write_event({"type": "analyze_final_result", "chars": len(raw_resp)})
         
         # Ensure we have proper sections in output
@@ -827,11 +887,11 @@ def summarize_package_results(user_name: str, user_age: int, package_name: str, 
 
 لطفاً یک گزارش جامع و کاربردی تهیه کنید."""
 
-        response = llm.invoke([
+        response_obj = llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt)
-        ]).content.strip()
-        
+        ])
+        response = extract_text_from_response(response_obj.content if hasattr(response_obj, 'content') else response_obj)
         return response
         
     except Exception as e:
@@ -840,14 +900,81 @@ def summarize_package_results(user_name: str, user_age: int, package_name: str, 
 
 
 def generate_final_result_analyze_voice(text: str) -> Optional[str]:
-    """Generate voice file from text analysis (stub - returns None if not implemented)."""
+    """Generate voice file from text analysis using TTS Service API."""
     try:
-        # This would use a TTS service to generate voice
-        # For now, return None to indicate voice generation is not available
-        LOG.info("Voice generation requested but not implemented")
-        return None
+        import os
+        import time
+        import requests
+        from rich.console import Console
+        
+        console = Console()
+        
+        # Extract text from dict response if needed
+        if isinstance(text, dict):
+            if 'text' in text:
+                text = text['text']
+            else:
+                text = str(text)
+        
+        # Convert to string if not already
+        text = str(text).strip()
+        
+        # Log the text being sent to TTS
+        console.rule("[bold blue]🎙️ TTS Generation Request[/bold blue]")
+        console.print(f"[cyan]Text to generate voice for:[/cyan]\n{text[:500]}..." if len(text) > 500 else text)
+        
+        # API Endpoint
+        api_url = "http://localhost:15800/tts/generate"
+        
+        # Prepare request payload
+        payload = {
+            "text": text,
+            "voice_model": "gemini-2.5-flash-preview-tts",
+            "output_format": "wav"
+        }
+        
+        console.log(f"[yellow]Sending request to TTS API: {api_url}[/yellow]")
+        
+        # Send POST request with extended timeout for long text generation
+        response = requests.post(api_url, json=payload, timeout=1800)
+        
+        if response.status_code == 200:
+            # Create voice directory if it doesn't exist
+            voice_dir = "/tmp/voices"
+            os.makedirs(voice_dir, exist_ok=True)
+            
+            # Generate filename
+            timestamp = int(time.time())
+            voice_path = os.path.join(voice_dir, f"voice_{timestamp}.wav")
+            
+            # Save audio content
+            with open(voice_path, "wb") as f:
+                f.write(response.content)
+            
+            console.log(f"[green]✅ Voice generated successfully: {voice_path} (Size: {len(response.content)} bytes)[/green]")
+            LOG.info(f"Voice generated successfully via API: {voice_path}")
+            return voice_path
+        else:
+            console.log(f"[red]❌ TTS API Error: {response.status_code} - {response.text}[/red]")
+            LOG.error(f"TTS API failed with status {response.status_code}: {response.text}")
+            
+            # Fallback to gTTS if API fails (use 'ar' for Persian/Farsi)
+            console.log("[yellow]⚠️ Falling back to gTTS...[/yellow]")
+            from gtts import gTTS
+            voice_dir = "/tmp/voices"
+            os.makedirs(voice_dir, exist_ok=True)
+            timestamp = int(time.time())
+            voice_path = os.path.join(voice_dir, f"voice_{timestamp}_fallback.mp3")
+            # Use 'ar' (Arabic) for Persian/Farsi text as gTTS doesn't support 'fa'
+            tts = gTTS(text=text, lang='ar', slow=False)
+            tts.save(voice_path)
+            console.log(f"[green]✅ Fallback voice generated: {voice_path}[/green]")
+            return voice_path
+            
     except Exception as e:
         LOG.error(f"generate_final_result_analyze_voice failed: {e}")
+        console = Console()
+        console.log(f"[bold red]❌ Critical Error in Voice Generation: {e}[/bold red]")
         return None
 
 
@@ -905,12 +1032,12 @@ def process_user_info_multimodal(name_age_message, personal_info_message) -> str
 علایق: [علایق یا نامشخص]
 سایر اطلاعات: [اطلاعات اضافی]"""
 
-        response = llm.invoke([
+        response_obj = llm.invoke([
             SystemMessage(content=system_prompt),
             name_age_message,
             personal_info_message
-        ]).content.strip()
-        
+        ])
+        response = extract_text_from_response(response_obj.content if hasattr(response_obj, 'content') else response_obj)
         return response
     except Exception as e:
         LOG.error(f"process_user_info_multimodal failed: {e}")
@@ -941,10 +1068,11 @@ def extract_user_profile(user_id: int, question1_text: str, question2_text: str,
 
 لطفاً پروفایل را استخراج کنید."""
 
-        response = llm.invoke([
+        response_obj = llm.invoke([
             SystemMessage(content=system_prompt),
             HumanMessage(content=user_prompt)
-        ]).content.strip()
+        ])
+        response = extract_text_from_response(response_obj.content if hasattr(response_obj, 'content') else response_obj)
         
         # Try to parse JSON
         import json
@@ -964,59 +1092,35 @@ def extract_user_profile(user_id: int, question1_text: str, question2_text: str,
 
 def generate_html_result_analyze(state: Dict[str, Any], final_text: str, user_name: str, 
                                  test_name: str, image_path: Optional[str] = None) -> Optional[str]:
-    """Generate HTML report for test results."""
+    """Generate HTML report for test results using html_utils."""
     try:
-        import os
-        import time
+        from html_utils import generate_html_report
         
-        # Create reports directory
-        reports_dir = "/root/blue-psychology-test/reports/html"
-        os.makedirs(reports_dir, exist_ok=True)
-        
+        # Use the existing html_utils function
         chat_id = state.get("chat_id", "unknown")
-        user_dir = os.path.join(reports_dir, str(chat_id))
-        os.makedirs(user_dir, exist_ok=True)
+        output_dir = f"/root/blue-psychology-test/reports/html/{chat_id}"
         
-        # Generate filename
-        timestamp = int(time.time())
-        filename = f"report_{chat_id}_{timestamp}.html"
-        filepath = os.path.join(user_dir, filename)
+        # Generate image caption if image exists
+        image_caption = None
+        if image_path:
+            image_caption = "تصویر شخصیت شما ساخته شده توسط هوش مصنوعی ✨"
         
-        # Simple HTML template
-        html_content = f"""<!DOCTYPE html>
-<html dir="rtl" lang="fa">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{test_name} - {user_name}</title>
-    <style>
-        body {{ font-family: Tahoma, Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
-        .container {{ max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-        h1 {{ color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }}
-        h2 {{ color: #34495e; margin-top: 30px; }}
-        p {{ line-height: 1.8; color: #555; }}
-        .meta {{ color: #7f8c8d; font-size: 0.9em; margin-bottom: 20px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>{test_name}</h1>
-        <div class="meta">
-            <strong>نام:</strong> {user_name}<br>
-            <strong>تاریخ:</strong> {time.strftime('%Y-%m-%d %H:%M')}
-        </div>
-        <div class="content">
-            {final_text.replace(chr(10), '<br>')}
-        </div>
-    </div>
-</body>
-</html>"""
+        html_path = generate_html_report(
+            analysis_text=final_text,
+            user_name=user_name,
+            test_name=test_name,
+            output_dir=output_dir,
+            image_path=image_path,
+            image_caption=image_caption
+        )
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(html_content)
-        
-        LOG.info(f"HTML report generated: {filepath}")
-        return filepath
+        if html_path:
+            LOG.info(f"HTML report generated: {html_path}")
+            return html_path
+        else:
+            LOG.error("HTML report generation returned None")
+            return None
+            
     except Exception as e:
         LOG.error(f"generate_html_result_analyze failed: {e}")
         return None

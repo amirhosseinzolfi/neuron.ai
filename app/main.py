@@ -4,8 +4,9 @@ from app.api.tts_router import router as tts_router
 from app.api.image_router import router as image_router
 from app.api.profile_extractor_router import router as profile_router
 from app.api.html_report_router import router as html_report_router
-from app.api.chat_test_router import router as chat_test_router
 from app.api.memory_router import router as memory_router
+from app.api.chat_router import router as chat_router
+from app.api.tools_router import router as tools_router
 
 app = FastAPI(title="Blue Psychology API", version="1.0.0")
 
@@ -21,8 +22,9 @@ app.include_router(tts_router)
 app.include_router(image_router)
 app.include_router(profile_router)
 app.include_router(html_report_router)
-app.include_router(chat_test_router)
 app.include_router(memory_router)
+app.include_router(chat_router)
+app.include_router(tools_router)
 
 @app.get("/")
 async def root():
