@@ -164,6 +164,9 @@ HISTORY_TRIM_THRESHOLD = int(os.getenv("AI_HISTORY_TRIM_THRESHOLD", "15"))
 HISTORY_RETENTION = int(os.getenv("AI_HISTORY_RETENTION", "5"))
 SUMMARY_INTERVAL = int(os.getenv("AI_HISTORY_SUMMARY_INTERVAL", "5"))
 
+# -----------------------------------------------------------------------------
+# LLM (singleton)
+# -----------------------------------------------------------------------------
 @lru_cache(maxsize=1)
 def get_llm() -> ChatGoogleGenerativeAI:
     LOG.info(f"LLM init: model={OPENAI_MODEL}")
