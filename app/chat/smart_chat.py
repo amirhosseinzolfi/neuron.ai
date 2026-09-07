@@ -510,15 +510,22 @@ def chat(agent: Pregel, user_id: str, message: str, thread_id: Optional[str] = N
 
                         if isinstance(ai_message, AIMessage):
                             content = ai_message.content
+                            # Normalize list content (Gemini multipart) to str
+                            if isinstance(content, list):
+                                content = " ".join(
+                                    block.get("text", "") if isinstance(block, dict) else str(block)
+                                    for block in content
+                                )
+                            content = content or ""
                             duration = time.time() - start_time
 
                             # Telegram-optimized/refined version for UI display
                             try:
-                                refined = optimize_for_telegram(content or "")
-                                log_response_refinement(len(content or ""), len(refined))
+                                refined = optimize_for_telegram(content)
+                                log_response_refinement(len(content), len(refined))
                             except Exception as e:
                                 log_refinement_error(e)
-                                refined = content or ""
+                                refined = content
 
                             # Success table
                             log_stream_completion(event_count, duration)
