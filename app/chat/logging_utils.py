@@ -5,7 +5,7 @@ Centralized logging system for debugging and monitoring chat operations.
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 from langchain_core.messages import AnyMessage, AIMessage, HumanMessage, SystemMessage
 from rich.console import Console
@@ -33,8 +33,14 @@ if not logger.handlers:
 # =============================================================================
 # Text Utilities
 # =============================================================================
-def _preview_text(text: str, limit: int = 50) -> str:
+def _preview_text(text: Any, limit: int = 50) -> str:
     """Create shortened preview of text."""
+    if isinstance(text, list):
+        text = " ".join(
+            block.get("text", "") if isinstance(block, dict) else str(block)
+            for block in text
+        )
+    text = str(text) if not isinstance(text, str) else text
     if len(text) <= limit:
         return text
     return f"{text[:limit]}..."
@@ -372,7 +378,7 @@ def log_refinement_error(error: Exception) -> None:
 # =============================================================================
 # Success & Error Tables
 # =============================================================================
-def create_success_table(duration: float, event_count: int, content: str) -> Table:
+def create_success_table(duration: float, event_count: int, content: Any) -> Table:
     """Create success summary table."""
     table = Table(
         title="✅ Chat Completed Successfully",
@@ -381,10 +387,12 @@ def create_success_table(duration: float, event_count: int, content: str) -> Tab
     )
     table.add_column("Metric", style="cyan")
     table.add_column("Value", style="white")
+    preview = _preview_text(content, 100)
+    content_len = len(preview)
     table.add_row("Duration", f"{duration:.2f}s")
     table.add_row("Events Processed", str(event_count))
-    table.add_row("Response Length", f"{len(content)} chars")
-    table.add_row("Response Preview", _preview_text(content, 100))
+    table.add_row("Response Length", f"{content_len} chars")
+    table.add_row("Response Preview", preview)
     return table
 
 

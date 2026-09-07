@@ -300,7 +300,7 @@ def start(update: Update, context: CallbackContext):
     ]
     inline_markup = InlineKeyboardMarkup(inline_kb)
 
-    gif_path = "/root/blue-psychology-test/images/neuron_intro.gif"
+    gif_path = "/root/neuron/images/neuron_intro.gif"
     
     if update.message:
         # From direct command
@@ -382,7 +382,7 @@ def psychology_tests(update: Update, context: CallbackContext):
     keyboard.append([InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")])
     
     caption_text = get_formatted_text(ui.TEST_SELECTION_CAPTION)
-    image_path = "/root/blue-psychology-test/images/neuron_session.png"
+    image_path = "/root/neuron/images/neuron_session.png"
     
     safe_edit_message(update, context, caption_text, InlineKeyboardMarkup(keyboard), image_path)
 
@@ -650,7 +650,7 @@ def back_to_home_cb(update: Update, context: CallbackContext):
          InlineKeyboardButton("💬 جلسه هوشمند درمانی با هوش مصنوعی", callback_data="smart_therapy")]
     ]
     
-    gif_path = "/root/blue-psychology-test/images/neuron_intro.gif"
+    gif_path = "/root/neuron/images/neuron_intro.gif"
     safe_edit_message(update, context, welcome_text, InlineKeyboardMarkup(inline_kb), gif_path)
 
 # =============================================================================
@@ -1671,12 +1671,12 @@ def handle_multimodal_input(update: Update, context: CallbackContext):
                             if images and len(images) > 0:
                                 result_data["images"] = images
                             else:
-                                default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                                default_image = "/root/neuron/images/neuron_result.png"
                                 if os.path.exists(default_image):
                                     result_data["images"] = [default_image]
                         except Exception as img_e:
                             console.log(f"[red]Image generation error: {img_e}[/red]")
-                            default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                            default_image = "/root/neuron/images/neuron_result.png"
                             if os.path.exists(default_image):
                                 result_data["images"] = [default_image]
 
@@ -1985,7 +1985,7 @@ def view_result_callback(update: Update, context: CallbackContext):
     # 1. Send image
     image_path = result.get('image_path')
     if not image_path or not os.path.exists(image_path):
-        image_path = "/root/blue-psychology-test/images/neuron_result.png"
+        image_path = "/root/neuron/images/neuron_result.png"
         console.log(f"[yellow]Using default image: {image_path}[/yellow]")
     
     if os.path.exists(image_path):
@@ -2573,13 +2573,13 @@ def handle_answer(update: Update, context: CallbackContext):
                         result_data["images"] = images
                     else:
                         # Use default image if generation fails
-                        default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                        default_image = "/root/neuron/images/neuron_result.png"
                         if os.path.exists(default_image):
                             result_data["images"] = [default_image]
                 except Exception as img_e:
                     console.log(f"[red]Image generation error: {img_e}[/red]")
                     # Use default image on error
-                    default_image = "/root/blue-psychology-test/images/neuron_result.png"
+                    default_image = "/root/neuron/images/neuron_result.png"
                     if os.path.exists(default_image):
                         result_data["images"] = [default_image]
 
