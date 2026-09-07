@@ -2,10 +2,15 @@ import logging
 from pathlib import Path
 
 import markdown2
-from weasyprint import HTML
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+try:
+    from weasyprint import HTML
+except Exception as e:
+    HTML = None
+    logger.warning("WeasyPrint / GTK3 runtime not found. PDF generation will be unavailable.")
 def generate_pdf(
     summary_md,
     user_name,
@@ -113,6 +118,10 @@ def generate_pdf(
       </body>
     </html>
     """
+
+    if HTML is None:
+        logger.warning("WeasyPrint is not available. Cannot generate PDF.")
+        return None
 
     HTML(string=html).write_pdf(str(output_path))
     logger.info(f"PDF generated successfully at: {output_path.resolve()}")
