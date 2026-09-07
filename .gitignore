@@ -1,228 +1,121 @@
-# ============================================
-# Python
-# ============================================
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
-*$py.class
 *.so
-.Python
 *.egg
 *.egg-info/
 dist/
 build/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.manifest
-*.spec
+.Python
 
-# ============================================
-# Virtual Environments
-# ============================================
-.env
-.venv
-env/
+# ── Virtual Environments ──────────────────────────────────────────────────────
 venv/
+.venv/
+env/
 ENV/
-env.bak/
-venv.bak/
-virtualenv/
 .python-version
 
-# ============================================
-# IDE & Editors
-# ============================================
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.pydevproject
-.settings/
-.continue/
-.history/
-*.code-profile
-.DS_Store
-
-# ============================================
-# Databases & Storage
-# ============================================
-*.db
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
-bot.db*
-psychology_bot.db*
-database/psychology_profiles/*.json
-database/user_profiles/*.json
-!database/psychology_profiles/.gitkeep
-!database/user_profiles/.gitkeep
-
-# ============================================
-# Logs & Monitoring
-# ============================================
-logs/
-*.log
-*.jsonl
-output.log
-*.log.*
-log/
-
-# ============================================
-# Generated Content & Media
-# ============================================
-generated_images/
-html_reports/
-tools/voice/*.wav
-tools/voice/*.mp3
-tools/voice/*.ogg
-!tools/voice/.gitkeep
-output/
-payments/*.jpg
-payments/*.png
-!payments/.gitkeep
-test_media/
-*.wav
-*.mp3
-*.ogg
-*.mp4
-*.avi
-
-# ============================================
-# Memory & Vector Storage
-# ============================================
-memory/
-qdrant_storage/
-storage/
-*.faiss
-*.index
-
-# ============================================
-# User Profiles & Data
-# ============================================
-profiles/*.json
-!profiles/.gitkeep
-reports/html/**/*.html
-!reports/html/.gitkeep
-
-# ============================================
-# Credentials & Secrets
-# ============================================
+# ── Environment & Secrets ─────────────────────────────────────────────────────
 .env
 .env.local
 .env.*.local
-har_and_cookies/
 *.pem
 *.key
 *.crt
 *.p12
 *.pfx
-config/g4f_cookies.json
+har_and_cookies/
 config/*.json
 !config/.gitkeep
 
-# ============================================
-# Service & Deployment Files
-# ============================================
+# ── IDE & Editors ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.history/
+.continue/
+
+# ── Databases & Storage ───────────────────────────────────────────────────────
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+qdrant_storage/
+memory/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+*.jsonl
+output.log
+
+# ── Generated Media & Reports ─────────────────────────────────────────────────
+tools/voice/*.wav
+tools/voice/*.mp3
+tools/voice/*.ogg
+!tools/voice/.gitkeep
+html_reports/
+generated_images/
+reports/html/**/*.html
+!reports/html/.gitkeep
+
+# ── User & Payment Data ───────────────────────────────────────────────────────
+database/psychology_profiles/*.json
+!database/psychology_profiles/.gitkeep
+database/user_profiles/*.json
+!database/user_profiles/.gitkeep
+database/auto_conversation_history.json
+database/conversation-history.json
+database/test*.json
+profiles/*.json
+!profiles/.gitkeep
+payments/*.jpg
+payments/*.png
+payments/*.jpeg
+!payments/.gitkeep
+
+# ── Service & Deployment ──────────────────────────────────────────────────────
 *.service
 supervisor_*.conf
 *.pid
 *.sock
+install_*.sh
+start_api_*.sh
+start_full_api.sh
+start_profile_api.sh
+manage_api.sh
+netdata_management.sh
+run_tts_api.py
+test_clear_checkpoints.py
+logging_config.py
 
-# ============================================
-# Temporary Files
-# ============================================
+# ── Temporary & Misc ──────────────────────────────────────────────────────────
 *.tmp
 *.temp
 *.bak
-*.swp
-*.swo
-*~
 .cache/
+.tox/
+*.lnk
+Thumbs.db
+.ipynb_checkpoints/
+
+# ── Frontend Build ────────────────────────────────────────────────────────────
+src/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# ── Testing ───────────────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
-.tox/
-.hypothesis/
-
-# ============================================
-# Documentation (Generated)
-# ============================================
-*_SUMMARY.md
-*_IMPLEMENTATION.md
-*_FIXES.md
-*_CHANGES.md
-CURL_QUICK_REFERENCE.txt
-INTEGRATION_SUMMARY.txt
-ssh_config_optimization.txt
-VSCODE_SSH_OPTIMIZATION.md
-HTML_REPORT_IMPLEMENTATION.md
-PROFILE_EXTRACTOR_FIXES.md
-PROFILE_FIX_SUMMARY.md
-TIMEOUT_CHANGES.md
-LONG_TERM_MEMORY.md
-
-# ============================================
-# Test Files (Keep test directory structure)
-# ============================================
 tests/test_media/*.jpg
 tests/test_media/*.png
 tests/test_media/*.ogg
 tests/test_media/*.wav
 !tests/test_media/.gitkeep
-
-# ============================================
-# Scripts (Exclude temporary/generated)
-# ============================================
-APPLY_FIX.sh
-apply_*.sh
-fix_*.sh
-
-# ============================================
-# Frontend & Build
-# ============================================
-src/store/
-frontend/node_modules/
-frontend/dist/
-frontend/build/
-*.bundle.js
-*.chunk.js
-
-# ============================================
-# External Libraries (ble.sh)
-# ============================================
-ble.sh/
-
-# ============================================
-# OS Specific
-# ============================================
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# ============================================
-# Jupyter Notebooks
-# ============================================
-.ipynb_checkpoints/
-*.ipynb
-
-# ============================================
-# Package Manager
-# ============================================
-poetry.lock
-Pipfile.lock
-package-lock.json
-yarn.lock
