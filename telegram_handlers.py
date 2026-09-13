@@ -287,6 +287,7 @@ def start(update: Update, context: CallbackContext):
     # Persistent reply keyboard
     reply_keyboard = [
         [KeyboardButton("📋 تست‌های روانشناسی"), KeyboardButton("🧠 پکیج‌های هوشمند")],
+        [KeyboardButton("🤖 ایجنت‌های هوشمند"), KeyboardButton("🧠 مغز و حافظه من")],
         [KeyboardButton("🧑‍💼 پروفایل من"), KeyboardButton("💬 جلسه هوشمند")]
     ]
     persistent_markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
@@ -295,6 +296,8 @@ def start(update: Update, context: CallbackContext):
     inline_kb = [
         [InlineKeyboardButton("📋 تست‌های روانشناسی", callback_data="psychology_tests"),
          InlineKeyboardButton("🧠 پکیج‌های هوشمند", callback_data="smart_packages")],
+        [InlineKeyboardButton("🤖 ایجنت‌های هوشمند", callback_data="show_agents_menu"),
+         InlineKeyboardButton("🧠 مغز و حافظه من", callback_data="show_my_brain")],
         [InlineKeyboardButton("🕵️ نتایج تست‌های قبلی", callback_data="my_profile"),
          InlineKeyboardButton("💬 جلسه هوشمند", callback_data="smart_therapy")]
     ]
@@ -329,6 +332,8 @@ def handle_keyboard_buttons(update: Update, context: CallbackContext):
     button_map = {
         "📋 تست‌های روانشناسی": psychology_tests,
         "🧠 پکیج‌های هوشمند": smart_packages,
+        "🤖 ایجنت‌های هوشمند": show_agents_menu,
+        "🧠 مغز و حافظه من": show_user_brain,
         "🧑‍💼 پروفایل من": my_profile,
         "💬 جلسه هوشمند": smart_therapy_session,
         "💰 کیف پول من": wallet,
@@ -342,11 +347,14 @@ def handle_keyboard_buttons(update: Update, context: CallbackContext):
         context.user_data["_skip_handle_answer"] = True
 
     if handler:
-        # Stop smart chat for all buttons except the smart chat button
+        # Stop smart chat & agent chat for all buttons except their respective buttons
         if text != "💬 جلسه هوشمند":
             context.user_data["smart_chat_active"] = False
         else:
             context.user_data["smart_chat_active"] = True
+
+        if text != "🤖 ایجنت‌های هوشمند":
+            context.user_data["agent_chat_active"] = False
 
         return handler(update, context)
 
@@ -357,9 +365,11 @@ def handle_keyboard_buttons(update: Update, context: CallbackContext):
         # Allow normal test flow or admin handlers to operate
         # clear skip flag so handle_answer can run for test/admin flow
         context.user_data.pop("_skip_handle_answer", None)
-        return None
+    # If user is currently in an agent chat session, route exclusively to that agent
+    if context.user_data.get("agent_chat_active"):
+        return handle_agent_chat_message(update, context)
 
-    # Otherwise automatically start smart chat and forward message
+    # Otherwise automatically start smart chat with default neuron and forward message
     context.user_data["smart_chat_active"] = True
     return handle_smart_chat_message(update, context)
 
@@ -486,20 +496,245 @@ def handle_smart_chat_message(update: Update, context: CallbackContext):
         send_formatted_text(update, "متأسفانه خطایی رخ داد. لطفاً دوباره تلاش کنید.")
 
 def end_smart_chat(update: Update, context: CallbackContext):
-    """Ends the smart chat session via command."""
-    if context.user_data.get("smart_chat_active"):
-        context.user_data["smart_chat_active"] = False
-        update.message.reply_text("جلسه گفتگوی هوشمند به پایان رسید. برای شروع مجدد، دکمه مربوطه را بزنید.")
-    else:
-        update.message.reply_text("در حال حاضر جلسه گفتگوی هوشمندی فعال نیست.")
-
-def end_smart_chat(update: Update, context: CallbackContext):
     """Ends the smart chat session."""
     if context.user_data.get("smart_chat_active"):
         context.user_data["smart_chat_active"] = False
         update.message.reply_text("جلسه گفتگوی هوشمند به پایان رسید. برای شروع مجدد، دکمه مربوطه را بزنید.")
     else:
         update.message.reply_text("در حال حاضر جلسه گفتگوی هوشمندی فعال نیست.")
+
+# =============================================================================
+# AGENTS & BRAIN HANDLERS (FASTAPI INTEGRATION)
+# =============================================================================
+
+def show_agents_menu(update: Update, context: CallbackContext):
+    """Display list of registered agents fetched from FastAPI."""
+    from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+    agents = TelegramFastAPIBridge.get_agents()
+
+    keyboard = []
+    for a in agents:
+        name = a.get("name")
+        display_name = a.get("display_name", name)
+        keyboard.append([InlineKeyboardButton(f"🤖 {display_name}", callback_data=f"select_agent_{name}")])
+
+    keyboard.append([InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")])
+
+    text = get_formatted_text(ui.AGENTS_MENU_INTRO)
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        safe_edit_message(update, context, text, reply_markup)
+    else:
+        update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+def show_agents_menu_cb(update: Update, context: CallbackContext):
+    show_agents_menu(update, context)
+
+def select_agent_callback(update: Update, context: CallbackContext):
+    """Show details and action buttons for selected agent."""
+    import html
+    query = update.callback_query
+    agent_name = query.data.replace("select_agent_", "")
+
+    from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+    agent = TelegramFastAPIBridge.get_agent_details(agent_name)
+
+    if not agent:
+        query.answer("ایجنت مورد نظر یافت نشد.", show_alert=True)
+        return
+
+    tools_list = []
+    for t in agent.get("tools", []):
+        t_name = html.escape(t.get("name", ""))
+        desc = t.get("description", "").strip()
+        first_line = desc.split("\n")[0].strip() if desc else ""
+        t_desc = html.escape(first_line)
+        tools_list.append(f"• <code>{t_name}</code>: {t_desc}")
+    tools_str = "\n".join(tools_list) or "• بدون ابزار اختصاصی"
+
+    skills_list = []
+    for s in agent.get("skills", []):
+        skills_list.append(f"• <code>{html.escape(s)}</code>")
+    skills_str = "\n".join(skills_list) or "• بدون مهارت مجزا"
+
+    text = ui.AGENT_DETAILS_TEMPLATE.format(
+        display_name=html.escape(agent.get("display_name", agent_name)),
+        name=html.escape(agent.get("name", agent_name)),
+        description=html.escape(agent.get("description", "")),
+        tools=tools_str,
+        skills=skills_str
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("💬 شروع گفتگو با این ایجنت", callback_data=f"start_agent_chat_{agent_name}")],
+        [InlineKeyboardButton("🔙 بازگشت به لیست ایجنت‌ها", callback_data="show_agents_menu"),
+         InlineKeyboardButton("🏠 منوی اصلی", callback_data="back_to_home")]
+    ]
+
+    safe_edit_message(update, context, text, InlineKeyboardMarkup(keyboard))
+
+def start_agent_chat_callback(update: Update, context: CallbackContext):
+    """Activate agent chat mode for user."""
+    import html
+    query = update.callback_query
+    agent_name = query.data.replace("start_agent_chat_", "")
+
+    from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+    agent = TelegramFastAPIBridge.get_agent_details(agent_name)
+    display_name = agent.get("display_name", agent_name) if agent else agent_name
+
+    context.user_data["agent_chat_active"] = True
+    context.user_data["active_agent_name"] = agent_name
+    context.user_data["smart_chat_active"] = False
+
+    text = ui.AGENT_CHAT_START_TEMPLATE.format(display_name=html.escape(display_name))
+    keyboard = [
+        [InlineKeyboardButton("🔚 پایان گفتگو با ایجنت", callback_data="end_agent_chat")]
+    ]
+    query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+    query.answer()
+
+def handle_agent_chat_message(update: Update, context: CallbackContext):
+    """Handles messages during an active agent chat session."""
+    cid = update.effective_chat.id
+    user_id = str(cid)
+    agent_name = context.user_data.get("active_agent_name", "therapist")
+    text = update.message.text if update.message and update.message.text else ""
+
+    console.log(f"[bold cyan]🤖 Agent Chat: user {user_id} -> agent '{agent_name}': {text[:80]}[/bold cyan]")
+
+    # Check if message is a command or text to exit
+    if text.strip() in ["/end_agent", "/stop_agent", "/stop", "/end_chat", "/exit", "پایان", "خروج", "اتمام"]:
+        return end_agent_chat(update, context)
+
+    # Show waiting message
+    waiting_message = update.message.reply_text(f"🤖 در حال دریافت پاسخ از {agent_name} ... 💭")
+
+    try:
+        from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+        res = TelegramFastAPIBridge.chat_with_agent(agent_name, user_id=user_id, chat_id=user_id, message=text)
+        try:
+            waiting_message.delete()
+        except Exception:
+            pass
+
+        if res.get("success"):
+            agent_reply = res.get("response", "")
+            keyboard = [
+                [InlineKeyboardButton("🔚 پایان گفتگو با این ایجنت", callback_data="end_agent_chat")]
+            ]
+            send_formatted_text(update, agent_reply, reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            send_formatted_text(update, f"❌ خطا در پردازش پاسخ ایجنت: {res.get('error', 'خطای سرور')}")
+    except Exception as e:
+        try:
+            waiting_message.delete()
+        except Exception:
+            pass
+        logger.error(f"Error handling agent chat in telegram: {e}", exc_info=True)
+        send_formatted_text(update, "متأسفانه در پردازش پاسخ ایجنت خطایی رخ داد.")
+
+def end_agent_chat(update: Update, context: CallbackContext):
+    """End agent chat session and return user to default state."""
+    if context.user_data.get("agent_chat_active"):
+        agent_name = context.user_data.get("active_agent_name", "ایجنت")
+        context.user_data["agent_chat_active"] = False
+        context.user_data.pop("active_agent_name", None)
+        msg = f"🔚 <b>جلسه گفتگو با {agent_name} به پایان رسید.</b>\n\nاکنون در صفحه اصلی قرار دارید. هر پیامی بفرستید مثل گذشته با <b>نورون</b> گفتگو خواهید کرد یا می‌توانید از منوی زیر تست‌ها و ایجنت‌ها را انتخاب کنید."
+    else:
+        msg = "در حال حاضر گفتگویی با ایجنت فعال نیست."
+
+    reply_keyboard = [
+        [KeyboardButton("📋 تست‌های روانشناسی"), KeyboardButton("🧠 پکیج‌های هوشمند")],
+        [KeyboardButton("🤖 ایجنت‌های هوشمند"), KeyboardButton("🧠 مغز و حافظه من")],
+        [KeyboardButton("🧑‍💼 پروفایل من"), KeyboardButton("💬 جلسه هوشمند")]
+    ]
+    persistent_markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
+
+    if update.message:
+        update.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=persistent_markup)
+    elif update.callback_query:
+        update.callback_query.message.reply_text(msg, parse_mode=ParseMode.HTML, reply_markup=persistent_markup)
+        update.callback_query.answer()
+
+def end_agent_chat_cb(update: Update, context: CallbackContext):
+    end_agent_chat(update, context)
+
+def stop_command_handler(update: Update, context: CallbackContext):
+    """Universal stop command for both agent chat and smart chat."""
+    if context.user_data.get("agent_chat_active"):
+        return end_agent_chat(update, context)
+    elif context.user_data.get("smart_chat_active"):
+        return end_smart_chat(update, context)
+    else:
+        update.message.reply_text("در حال حاضر هیچ جلسه گفتگوی فعالی برای پایان دادن وجود ندارد.")
+
+def show_user_brain(update: Update, context: CallbackContext):
+    """Display user brain overview fetched from FastAPI /brain."""
+    cid = update.effective_chat.id
+    from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+    brain = TelegramFastAPIBridge.get_user_brain(str(cid))
+
+    profile = brain.get("profile", {})
+    name = f"{profile.get('first_name', '')} {profile.get('last_name', '')}".strip() or profile.get("username") or "کاربر"
+    stars = profile.get("stars", 0)
+    progress = profile.get("progress", 0)
+
+    psychology_data = profile.get("psychology_profile")
+    if isinstance(psychology_data, dict):
+        psychology_str = json.dumps(psychology_data, ensure_ascii=False, indent=2)[:400]
+    elif psychology_data:
+        psychology_str = str(psychology_data)[:400]
+    else:
+        psychology_str = "هنوز آزمونی ثبت نشده است."
+
+    memories_count = len(brain.get("long_term_memories", []))
+    tasks_count = len(brain.get("tasks", [])) + len(brain.get("reminders", []))
+
+    text = ui.BRAIN_MENU_TEMPLATE.format(
+        name=name,
+        stars=stars,
+        progress=progress,
+        psychology=psychology_str,
+        memories_count=memories_count,
+        tasks_count=tasks_count
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("🔍 مشاهده فکت‌های حافظه بلندمدت", callback_data="show_brain_memories")],
+        [InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="back_to_home")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    if update.callback_query:
+        safe_edit_message(update, context, text, reply_markup)
+    else:
+        update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+
+def show_user_brain_cb(update: Update, context: CallbackContext):
+    show_user_brain(update, context)
+
+def show_brain_memories_callback(update: Update, context: CallbackContext):
+    """Display individual memory entries from Mem0."""
+    cid = update.effective_chat.id
+    from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+    memories = TelegramFastAPIBridge.get_user_memories(str(cid), limit=10)
+
+    if not memories:
+        text = "💾 هنوز هیچ فکت یا خاطره‌ای در حافظه بلندمدت شما ثبت نشده است. با گفتگو با ایجنت‌ها یا انجام تست‌ها، این بخش تکمیل خواهد شد."
+    else:
+        lines = ["💾 **فکت‌ها و خاطرات ثبت‌شده در مغز شما (Mem0):**\n"]
+        for i, m in enumerate(memories, 1):
+            content = m.get("content") or m.get("memory") or str(m)
+            lines.append(f"{i}. {content}")
+        text = "\n".join(lines)
+
+    keyboard = [
+        [InlineKeyboardButton("🔙 بازگشت به شناسنامه مغز", callback_data="show_my_brain")],
+        [InlineKeyboardButton("🏠 منوی اصلی", callback_data="back_to_home")]
+    ]
+    safe_edit_message(update, context, text, InlineKeyboardMarkup(keyboard))
 
 def clear_data(update: Update, context: CallbackContext):
     """Clear all user data except wallet balance."""
@@ -2067,8 +2302,34 @@ def handle_answer(update: Update, context: CallbackContext):
     info = chat_states.get(cid)
     if info and info.get("stage") == "admin_charge_amount":
         return handle_admin_charge_input(update, context, text, info)
-    if info and info.get("stage") == "admin_reduce_amount":
-        return handle_admin_reduce_input(update, context, text, info)
+    # Handle modular agent chat if active
+    if context.user_data.get("agent_chat_active"):
+        agent_name = context.user_data.get("active_agent_name", "therapist")
+        console.log(f"[bold cyan]🤖 Agent chat is active for '{agent_name}', processing message...[/bold cyan]")
+        user_id = str(cid)
+
+        waiting_message = update.message.reply_text("🤖 در حال دریافت پاسخ از ایجنت ... 💭")
+        try:
+            from app.services.telegram_fastapi_bridge import TelegramFastAPIBridge
+            res = TelegramFastAPIBridge.chat_with_agent(agent_name, user_id=user_id, chat_id=user_id, message=text)
+            try:
+                waiting_message.delete()
+            except Exception:
+                pass
+
+            if res.get("success"):
+                agent_reply = res.get("response", "")
+                send_formatted_text(update, agent_reply)
+            else:
+                send_formatted_text(update, f"❌ خطا در پردازش ایجنت: {res.get('error', 'خطای سرور')}")
+        except Exception as e:
+            try:
+                waiting_message.delete()
+            except Exception:
+                pass
+            logger.error(f"Error handling agent chat in telegram: {e}", exc_info=True)
+            send_formatted_text(update, "متأسفانه در پردازش پاسخ ایجنت خطایی رخ داد.")
+        return None
 
     # Handle smart chat first if active
     if context.user_data.get("smart_chat_active"):

@@ -366,6 +366,11 @@ def register_handlers(dp):
     commands = [
         ("start", handlers.start),
         ("psychology_tests", handlers.psychology_tests),
+        ("agents", handlers.show_agents_menu),
+        ("brain", handlers.show_user_brain),
+        ("end_agent", handlers.end_agent_chat),
+        ("stop_agent", handlers.end_agent_chat),
+        ("stop", handlers.stop_command_handler),
         ("my_profile", handlers.my_profile),
         ("wallet", handlers.wallet),
         ("admin", handlers.admin_panel),
@@ -382,9 +387,12 @@ def register_handlers(dp):
     # When any inline callback button is pressed we should disable smart chat for that user
     def _callback_preprocessor(update: Update, context: CallbackContext):
         try:
-            user_id = update.callback_query.message.chat_id
+            data = update.callback_query.data or ""
             # mark smart chat inactive to avoid accidental forwarding
             context.user_data["smart_chat_active"] = False
+            if not data.startswith("start_agent_chat_") and not data.startswith("select_agent_"):
+                if data != "show_agents_menu":
+                    context.user_data["agent_chat_active"] = False
         except Exception:
             pass
 
@@ -393,6 +401,14 @@ def register_handlers(dp):
     
     # Callback query handlers
     callback_handlers = [
+        # Agents & Brain
+        ("^show_agents_menu$", handlers.show_agents_menu_cb),
+        (r"^select_agent_[a-zA-Z0-9_]+$", handlers.select_agent_callback),
+        (r"^start_agent_chat_[a-zA-Z0-9_]+$", handlers.start_agent_chat_callback),
+        ("^end_agent_chat$", handlers.end_agent_chat_cb),
+        ("^show_my_brain$", handlers.show_user_brain_cb),
+        ("^show_brain_memories$", handlers.show_brain_memories_callback),
+
         # Main menu
         ("^psychology_tests$", handlers.show_tests_cb),
         ("^my_profile$", handlers.show_profile_cb),
@@ -499,7 +515,10 @@ def main():
 
     # Set bot commands
     updater.bot.set_my_commands([
-        BotCommand("start", "🚀 شروع ربات و انتخاب تست"),
+        BotCommand("start", "🚀 شروع ربات و انتخاب منو"),
+        BotCommand("agents", "🤖 ایجنت‌های هوشمند"),
+        BotCommand("brain", "🧠 شناسنامه مغز و حافظه"),
+        BotCommand("end_agent", "🔚 پایان گفتگو با ایجنت"),
         BotCommand("psychology_tests", "📋 نمایش تست‌های روانشناسی"),
         BotCommand("my_profile", "🕵️ مشاهده نتایج تست‌های قبلی"),
         BotCommand("wallet", "💰 کیف پول من"),

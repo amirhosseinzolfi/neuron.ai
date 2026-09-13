@@ -7,8 +7,10 @@ from app.api.html_report_router import router as html_report_router
 from app.api.memory_router import router as memory_router
 from app.api.chat_router import router as chat_router
 from app.api.tools_router import router as tools_router
+from app.api.brain_router import router as brain_router
+from app.api.agents_router import router as agents_router
 
-app = FastAPI(title="Blue Psychology API", version="1.0.0")
+app = FastAPI(title="Neuron AI Platform API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +27,8 @@ app.include_router(html_report_router)
 app.include_router(memory_router)
 app.include_router(chat_router)
 app.include_router(tools_router)
+app.include_router(brain_router)
+app.include_router(agents_router)
 
 @app.get("/")
 async def root():
