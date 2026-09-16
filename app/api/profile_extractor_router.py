@@ -1,6 +1,6 @@
 from fastapi import APIRouter, File, UploadFile, Form, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Union
 import tempfile
 import os
 import json
@@ -23,15 +23,16 @@ class ProfileInput(BaseModel):
 async def extract_profile(
     user_id: Optional[str] = Form(None),
     user_profile: Optional[str] = Form(None),
+    user_profile_file: Optional[Union[UploadFile, str]] = File(None),
     text_messages: Optional[str] = Form(None),
-    images: Optional[List[UploadFile]] = File(None),
-    audios: Optional[List[UploadFile]] = File(None)
+    images: Optional[Union[List[Union[UploadFile, str]], UploadFile, str]] = File(None),
+    audios: Optional[Union[List[Union[UploadFile, str]], UploadFile, str]] = File(None)
 ):
     """
     Generate/update user profile from unified multimodal inputs.
     
     Uses a simplified unified approach that always regenerates the complete profile by:
-    - Reading existing profile data (if provided)
+    - Reading existing profile data (if provided via user_profile string or user_profile_file)
     - Analyzing new inputs (text, images, audio, test results)
     - Merging intelligently: preserve valid existing data, add new discoveries, update contradictions
     
@@ -41,9 +42,10 @@ async def extract_profile(
     Args:
         user_id: User identifier (optional, auto-generated if not provided)
         user_profile: JSON string of existing profile to merge with (optional)
+        user_profile_file: Uploaded JSON file of existing profile (optional)
         text_messages: JSON array of text messages or single text (test results, conversations, etc.)
-        images: Multiple image files (analyzed for physical attributes, visible text, context)
-        audios: Multiple audio files (analyzed for transcription, voice characteristics, personal info)
+        images: Image file(s) (analyzed for physical attributes, visible text, context)
+        audios: Audio file(s) (analyzed for transcription, voice characteristics, personal info)
     
     Returns:
         Complete regenerated user profile JSON with merged data from all sources
@@ -60,14 +62,26 @@ async def extract_profile(
             import hashlib
             user_id = hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
         
-        # Parse provided existing profile JSON text (no persistence)
+        # Parse provided existing profile (from file or form string)
         profile_data = None
         saved_profile_source = None
-        if user_profile:
+        
+        if user_profile_file and hasattr(user_profile_file, "read") and getattr(user_profile_file, "filename", None):
+            try:
+                content = await user_profile_file.read()
+                if content:
+                    profile_data = json.loads(content.decode("utf-8") if isinstance(content, bytes) else content)
+                    saved_profile_source = "file"
+                    log.info(f"Parsed profile data from uploaded file: {type(profile_data)}")
+            except Exception as e:
+                log.warning(f"Could not parse user_profile_file: {e}")
+
+        if not profile_data and user_profile:
             try:
                 # Handle both JSON string and already-parsed dict
                 if isinstance(user_profile, str):
-                    profile_data = json.loads(user_profile)
+                    if user_profile.strip():
+                        profile_data = json.loads(user_profile)
                 elif isinstance(user_profile, dict):
                     profile_data = user_profile
                 saved_profile_source = "string"
@@ -98,21 +112,31 @@ async def extract_profile(
         # Handle media files - these will be processed together with text as unified multimodal input
         media_inputs = []
         
-        if images:
-            for img in images:
-                temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-                temp.write(await img.read())
-                temp.close()
-                media_inputs.append({"type": "image", "path": temp.name})
-                temp_files.append(temp.name)
-        
-        if audios:
-            for aud in audios:
-                temp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-                temp.write(await aud.read())
-                temp.close()
-                media_inputs.append({"type": "audio", "path": temp.name})
-                temp_files.append(temp.name)
+        # Normalize images input to list and filter out empty strings
+        raw_images = images if isinstance(images, list) else ([images] if images else [])
+        for img in raw_images:
+            if hasattr(img, "read") and getattr(img, "filename", None):
+                content = await img.read()
+                if content:
+                    ext = os.path.splitext(img.filename)[1] or ".jpg"
+                    temp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                    temp.write(content)
+                    temp.close()
+                    media_inputs.append({"type": "image", "path": temp.name})
+                    temp_files.append(temp.name)
+
+        # Normalize audios input to list and filter out empty strings
+        raw_audios = audios if isinstance(audios, list) else ([audios] if audios else [])
+        for aud in raw_audios:
+            if hasattr(aud, "read") and getattr(aud, "filename", None):
+                content = await aud.read()
+                if content:
+                    ext = os.path.splitext(aud.filename)[1] or ".mp3"
+                    temp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                    temp.write(content)
+                    temp.close()
+                    media_inputs.append({"type": "audio", "path": temp.name})
+                    temp_files.append(temp.name)
         
         # Log request details
         write_event("profile_regenerate_request", {
@@ -120,8 +144,8 @@ async def extract_profile(
             "has_existing_profile": bool(profile_data),
             "profile_source": saved_profile_source,
             "text_length": len(combined_text or ""),
-            "images_count": len(images or []),
-            "audios_count": len(audios or []),
+            "images_count": len([m for m in media_inputs if m["type"] == "image"]),
+            "audios_count": len([m for m in media_inputs if m["type"] == "audio"]),
             "has_media": bool(media_inputs)
         })
         
@@ -153,9 +177,15 @@ async def extract_profile(
                 f"confidence={result.get('confidence'):.2f}, "
                 f"ops={result.get('operations')}")
         
-        # Return the profile dict directly (FastAPI will serialize to JSON)
-        return result["profile"]
+        # Ensure user_id is in the returned profile dictionary
+        profile_dict = result.get("profile", {})
+        if isinstance(profile_dict, dict) and not profile_dict.get("user_id"):
+            profile_dict["user_id"] = result.get("user_id") or user_id
+        
+        return profile_dict
     
+    except HTTPException:
+        raise
     except json.JSONDecodeError as e:
         log.exception("/profile/extract JSON decode failed")
         raise HTTPException(status_code=500, detail=f"JSON parsing error: {str(e)}")
@@ -255,8 +285,16 @@ async def extract_profile_json(input_data: ProfileInput):
         log.info(f"Profile regenerated (JSON) for user {user_id}: "
                 f"confidence={result.get('confidence'):.2f}")
 
+        # Ensure user_id is in the returned profile dictionary
+        profile_dict = result.get("profile", {})
+        if isinstance(profile_dict, dict) and not profile_dict.get("user_id"):
+            profile_dict["user_id"] = result.get("user_id") or user_id
+
         # Return the profile dict directly (FastAPI will serialize to JSON)
-        return result["profile"]
+        return profile_dict
     
+    except HTTPException:
+        raise
     except Exception as e:
+        log.exception("/profile/extract-json failed")
         raise HTTPException(status_code=500, detail=str(e))

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from logging_utils import write_event
+from logging_utils import write_event, log
 from database.prompts import (
     PROFILE_EXTRACTOR_INSTRUCTION_TEMPLATE,
     PROFILE_EXTRACTOR_OUTPUT_SYSTEM,
@@ -28,7 +28,7 @@ if not PROFILE_API_KEY:
     )
 
 llm = ChatGoogleGenerativeAI(
-    model="gemini-flash-latest",
+    model="gemini-flash-lite-latest",
     api_key=PROFILE_API_KEY,
     temperature=0.7
 )
@@ -136,7 +136,7 @@ def load_existing_profile(user_id: str) -> Optional[UserProfile]:
                 data = json.load(f)
             return UserProfile(**data)
         except Exception as e:
-            print(f"Warning: Could not load existing profile - {e}")
+            log.warning(f"Could not load existing profile - {e}")
             return None
     
     return None
@@ -148,7 +148,7 @@ def save_profile(user_id: str, profile: UserProfile) -> str:
     with open(profile_path, "w") as f:
         json.dump(profile.model_dump(), f, indent=2)
     
-    print(f"✅ Profile saved: {profile_path}")
+    log.info(f"Profile saved: {profile_path}")
     return profile_path
 
 def profile_exists(user_id: str) -> bool:
@@ -231,7 +231,7 @@ def build_multimodal_human_message(text: str, media_files: List[dict]) -> HumanM
                 })
         
         except Exception as e:
-            print(f"Warning: Could not process {media_type} file {path} - {e}")
+            log.warning(f"Could not process {media_type} file {path} - {e}")
             continue
     
     # Return HumanMessage with multimodal content array (smart_chat.py pattern)
@@ -280,11 +280,27 @@ def regenerate_profile_json(text: str, media_files: List[dict], existing_profile
     messages = [system_message, final_message]
     response = llm.invoke(messages).content
     
-    print(f"\n🤖 LLM Raw Response (first 500 chars):\n{response[:500]}")
-    print(f"\n🤖 LLM Raw Response (last 300 chars):\n...{response[-300:]}")
+    # Normalize response to string (ChatGoogleGenerativeAI may return a list of parts or dicts)
+    if isinstance(response, list):
+        text_parts = []
+        for part in response:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict) and "text" in part:
+                text_parts.append(str(part["text"]))
+            elif hasattr(part, "text"):
+                text_parts.append(str(part.text))
+            else:
+                text_parts.append(str(part))
+        raw_text = "".join(text_parts)
+    else:
+        raw_text = str(response) if response is not None else ""
+
+    log.info(f"LLM Raw Response (first 500 chars):\n{raw_text[:500]}")
+    log.info(f"LLM Raw Response (last 300 chars):\n...{raw_text[-300:]}")
     
     # Clean up response (remove markdown wrapping and extract JSON)
-    cleaned = response.strip()
+    cleaned = raw_text.strip()
     
     # Remove markdown code blocks
     if "```json" in cleaned:
@@ -310,8 +326,8 @@ def regenerate_profile_json(text: str, media_files: List[dict], existing_profile
         json.loads(cleaned)  # Test parse
         return cleaned
     except json.JSONDecodeError as e:
-        print(f"Warning: LLM response is not valid JSON: {e}")
-        print(f"Response preview: {cleaned[:300]}...")
+        log.warning(f"LLM response is not valid JSON: {e}")
+        log.warning(f"Response preview: {cleaned[:300]}...")
         # Return as-is and let caller handle the error
         return cleaned
 
@@ -323,17 +339,17 @@ def load_profile_node(state: State) -> State:
     """Load existing profile if available (for merging)."""
     # If profile provided upstream, use it (stateless mode)
     if state.get("existing_profile") or state.get("existing_profile_json"):
-        print(f"🧾 Using provided existing profile for {state['user_id']}")
+        log.info(f"Using provided existing profile for {state['user_id']}")
     elif state.get("persist"):
         # Load from disk if persistence enabled
         existing = load_existing_profile(state["user_id"])
         state["existing_profile"] = existing
         if existing:
-            print(f"📂 Loaded existing profile for {state['user_id']}")
+            log.info(f"Loaded existing profile for {state['user_id']}")
         else:
-            print(f"📝 No existing profile for {state['user_id']}")
+            log.info(f"No existing profile for {state['user_id']}")
     else:
-        print(f"📝 No existing profile for {state['user_id']}")
+        log.info(f"No existing profile for {state['user_id']}")
     
     state["operation"] = "update"  # Always use unified update approach
     return state
@@ -348,7 +364,7 @@ def update_profile_node(state: State) -> State:
     - Media files
     """
     
-    print("🤖 Regenerating complete user profile...")
+    log.info("Regenerating complete user profile...")
     
     # Get existing profile dict (if available)
     existing_profile_dict = None
@@ -382,18 +398,18 @@ def update_profile_node(state: State) -> State:
         profile_data = json.loads(json_str_clean)
         profile_data["user_id"] = state["user_id"]
         profile = UserProfile(**profile_data)
-        print(f"   ✅ Profile regenerated successfully")
+        log.info("   Profile regenerated successfully")
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"   ⚠️ JSON parsing error - {e}")
-        print(f"   Raw response (first 500 chars): {json_str[:500]}...")
-        print(f"   Raw response (last 200 chars): ...{json_str[-200:]}")
+        log.warning(f"   JSON parsing error - {e}")
+        log.warning(f"   Raw response (first 500 chars): {json_str[:500]}...")
+        log.warning(f"   Raw response (last 200 chars): ...{json_str[-200:]}")
         # Fallback to existing or empty profile
         if state.get("existing_profile"):
             profile = state["existing_profile"]
-            print(f"   Using existing profile as fallback")
+            log.info("   Using existing profile as fallback")
         else:
             profile = UserProfile(user_id=state["user_id"])
-            print(f"   Using empty profile as fallback")
+            log.info("   Using empty profile as fallback")
     
     state["profile"] = profile
     state["history"].append({
@@ -418,7 +434,7 @@ def cleanup_node(state: State) -> State:
     if profile.metadata.confidence < 0.7:
         # Example cleanup: clear inferred traits if confidence is low
         profile.psychological_profile = PsychologicalProfile()
-        print("   Cleaned low-confidence psychological data")
+        log.info("   Cleaned low-confidence psychological data")
     
     state["history"].append({
         "timestamp": datetime.now().isoformat(),
@@ -564,7 +580,7 @@ def delete_profile(user_id: str) -> bool:
     profile_path = get_profile_path(user_id)
     if os.path.exists(profile_path):
         os.remove(profile_path)
-        print(f"🗑️  Profile deleted: {profile_path}")
+        log.info(f"Profile deleted: {profile_path}")
         return True
     return False
 
