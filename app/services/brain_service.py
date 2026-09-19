@@ -85,18 +85,14 @@ class BrainService:
         - Long-Term Vector Memories (semantic search if query provided, else recent)
         - Active Tasks & Reminders
         """
-        try:
-            chat_id = int(user_id)
-        except (ValueError, TypeError):
-            chat_id = user_id
+        chat_id = str(user_id)
 
         # 1. Base User Profile from db.py
         user_row = None
-        if isinstance(chat_id, int):
-            try:
-                user_row = db.get_user(chat_id)
-            except Exception as e:
-                logger.error(f"Error fetching user {chat_id} from db: {e}")
+        try:
+            user_row = db.get_user(chat_id)
+        except Exception as e:
+            logger.error(f"Error fetching user {chat_id} from db: {e}")
 
         profile_data = user_row or {}
         psychology_profile = self._parse_json_safe(profile_data.get("psychology_profile"))
@@ -104,30 +100,28 @@ class BrainService:
 
         # 2. Test Results from db.py
         test_history = []
-        if isinstance(chat_id, int):
-            try:
-                test_rows = db.get_user_tests(chat_id)
-                if test_rows:
-                    for r in test_rows:
-                        # r has keys: id, test_name, timestamp
-                        test_detail = db.get_test_result(r["id"])
-                        test_history.append({
-                            "id": r["id"],
-                            "test_name": r["test_name"],
-                            "timestamp": r["timestamp"],
-                            "final_analyze": test_detail.get("final_analyze") if test_detail else None,
-                            "result_summary": (test_detail.get("result_text") or "")[:300] if test_detail else None
-                        })
-            except Exception as e:
-                logger.warning(f"Error fetching test results for {chat_id}: {e}")
+        try:
+            test_rows = db.get_user_tests(chat_id)
+            if test_rows:
+                for r in test_rows:
+                    # r has keys: id, test_name, timestamp
+                    test_detail = db.get_test_result(r["id"])
+                    test_history.append({
+                        "id": r["id"],
+                        "test_name": r["test_name"],
+                        "timestamp": r["timestamp"],
+                        "final_analyze": test_detail.get("final_analyze") if test_detail else None,
+                        "result_summary": (test_detail.get("result_text") or "")[:500] if test_detail else None
+                    })
+        except Exception as e:
+            logger.warning(f"Error fetching test results for {chat_id}: {e}")
 
         # 3. Packages from db.py
         packages = []
-        if isinstance(chat_id, int):
-            try:
-                packages = db.get_user_packages(chat_id) or []
-            except Exception as e:
-                logger.warning(f"Error fetching packages for {chat_id}: {e}")
+        try:
+            packages = db.get_user_packages(chat_id) or []
+        except Exception as e:
+            logger.warning(f"Error fetching packages for {chat_id}: {e}")
 
         # 4. Long-Term Vector Memory from MemoryService (Mem0)
         memories = []

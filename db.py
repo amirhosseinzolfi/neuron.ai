@@ -466,8 +466,8 @@ def save_psychology_profile(chat_id: int, profile_data: dict):
     file_path = os.path.join(profile_dir, filename)
     
     # Save profile data as JSON file
-    with open(file_path, 'w') as f:
-        json.dump(profile_data, f, indent=2)
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(profile_data, f, indent=2, ensure_ascii=False)
     
     # Update database with file path
     conn = get_conn()

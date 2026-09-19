@@ -92,19 +92,28 @@ async def extract_profile(
         
         # Parse text messages
         combined_text = ""
+        raw_msgs_list = []
         if text_messages:
             try:
                 # Handle both JSON string and already-parsed list
                 if isinstance(text_messages, str):
                     msgs = json.loads(text_messages)
-                    combined_text = "\n".join(msgs) if isinstance(msgs, list) else str(msgs)
+                    if isinstance(msgs, list):
+                        raw_msgs_list = msgs
+                        combined_text = "\n\n".join(msgs)
+                    else:
+                        raw_msgs_list = [str(msgs)]
+                        combined_text = str(msgs)
                 elif isinstance(text_messages, list):
-                    combined_text = "\n".join(text_messages)
+                    raw_msgs_list = text_messages
+                    combined_text = "\n\n".join(text_messages)
                 else:
+                    raw_msgs_list = [str(text_messages)]
                     combined_text = str(text_messages)
             except Exception as e:
                 log.warning(f"Could not parse text_messages: {e}")
                 combined_text = str(text_messages)
+                raw_msgs_list = [combined_text]
         
         if not combined_text.strip():
             combined_text = "Extract comprehensive profile information from all provided media inputs."
@@ -181,7 +190,52 @@ async def extract_profile(
         profile_dict = result.get("profile", {})
         if isinstance(profile_dict, dict) and not profile_dict.get("user_id"):
             profile_dict["user_id"] = result.get("user_id") or user_id
-        
+
+        # =========================================================================
+        # 🧠 Persist user data & test results into Brain DB for Life Coach Agent
+        # =========================================================================
+        try:
+            import db
+            core_info = profile_dict.get("core_info", {}) if isinstance(profile_dict, dict) else {}
+            full_name = core_info.get("name") or "کاربر"
+            name_parts = full_name.split()
+            first_name = name_parts[0] if name_parts else "کاربر"
+            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+            # 1. Save or update user in SQLite users table
+            db.save_user(
+                chat_id=user_id,
+                username=f"ext_{str(user_id)[:8]}",
+                first_name=first_name,
+                last_name=last_name
+            )
+
+            # 2. Update basic demographics (age, occupation)
+            info_text = f"سن: {core_info.get('age') or ''} | شغل: {core_info.get('occupation') or ''}".strip()
+            if info_text:
+                db.update_user_profile(chat_id=user_id, information=info_text)
+
+            # 3. Save psychological profile JSON file
+            db.save_psychology_profile(chat_id=user_id, profile_data=profile_dict)
+
+            # 4. Save individual psychological test results
+            if raw_msgs_list:
+                for msg in raw_msgs_list:
+                    if isinstance(msg, str) and "آزمون روانشناختی:" in msg:
+                        lines = [l.strip() for l in msg.strip().split("\n") if l.strip()]
+                        test_title = lines[0].replace("آزمون روانشناختی:", "").strip()
+                        db.save_test_result(
+                            chat_id=user_id,
+                            test_name=test_title,
+                            result_text=msg,
+                            pdf_path="",
+                            final_analyze=msg
+                        )
+
+            log.info(f"✅ User {user_id} and test results successfully persisted into Brain DB")
+        except Exception as save_err:
+            log.warning(f"⚠️ Could not persist user data into brain: {save_err}")
+
         return profile_dict
     
     except HTTPException:
@@ -289,6 +343,45 @@ async def extract_profile_json(input_data: ProfileInput):
         profile_dict = result.get("profile", {})
         if isinstance(profile_dict, dict) and not profile_dict.get("user_id"):
             profile_dict["user_id"] = result.get("user_id") or user_id
+
+        # Persist user profile and test results into Brain DB for Life Coach Agent
+        try:
+            import db
+            core_info = profile_dict.get("core_info", {}) if isinstance(profile_dict, dict) else {}
+            full_name = core_info.get("name") or "کاربر"
+            name_parts = full_name.split()
+            first_name = name_parts[0] if name_parts else "کاربر"
+            last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+            db.save_user(
+                chat_id=user_id,
+                username=f"ext_{str(user_id)[:8]}",
+                first_name=first_name,
+                last_name=last_name
+            )
+
+            info_text = f"سن: {core_info.get('age') or ''} | شغل: {core_info.get('occupation') or ''}".strip()
+            if info_text:
+                db.update_user_profile(chat_id=user_id, information=info_text)
+
+            db.save_psychology_profile(chat_id=user_id, profile_data=profile_dict)
+
+            if input_data.text_messages:
+                for msg in input_data.text_messages:
+                    if isinstance(msg, str) and "آزمون روانشناختی:" in msg:
+                        lines = [l.strip() for l in msg.strip().split("\n") if l.strip()]
+                        test_title = lines[0].replace("آزمون روانشناختی:", "").strip()
+                        db.save_test_result(
+                            chat_id=user_id,
+                            test_name=test_title,
+                            result_text=msg,
+                            pdf_path="",
+                            final_analyze=msg
+                        )
+
+            log.info(f"✅ User {user_id} (JSON) and test results persisted into Brain DB")
+        except Exception as save_err:
+            log.warning(f"⚠️ Could not persist JSON user data into brain: {save_err}")
 
         # Return the profile dict directly (FastAPI will serialize to JSON)
         return profile_dict
