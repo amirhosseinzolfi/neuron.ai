@@ -219,11 +219,18 @@ async def extract_profile(
             db.save_psychology_profile(chat_id=user_id, profile_data=profile_dict)
 
             # 4. Save individual psychological test results
+            saved_test_count = 0
             if raw_msgs_list:
-                for msg in raw_msgs_list:
-                    if isinstance(msg, str) and "آزمون روانشناختی:" in msg:
+                for idx, msg in enumerate(raw_msgs_list):
+                    if isinstance(msg, str) and ("آزمون" in msg or "تست" in msg or "test" in msg.lower()):
                         lines = [l.strip() for l in msg.strip().split("\n") if l.strip()]
-                        test_title = lines[0].replace("آزمون روانشناختی:", "").strip()
+                        first_line = lines[0] if lines else f"تست {idx}"
+                        test_title = (
+                            first_line
+                            .replace("آزمون روانشناختی:", "")
+                            .replace("آزمون:", "")
+                            .strip()
+                        ) or f"تست {idx}"
                         db.save_test_result(
                             chat_id=user_id,
                             test_name=test_title,
@@ -231,10 +238,21 @@ async def extract_profile(
                             pdf_path="",
                             final_analyze=msg
                         )
+                        saved_test_count += 1
 
-            log.info(f"✅ User {user_id} and test results successfully persisted into Brain DB")
+            log.info(f"✅ User {user_id} and {saved_test_count} test results successfully persisted into Brain DB")
+            write_event("profile_persist_success", {
+                "user_id": user_id,
+                "tests_saved": saved_test_count
+            })
         except Exception as save_err:
-            log.warning(f"⚠️ Could not persist user data into brain: {save_err}")
+            import traceback
+            log.exception(f"❌ Could not persist user data into brain for user {user_id}: {save_err}")
+            write_event("profile_persist_error", {
+                "user_id": user_id,
+                "error": str(save_err),
+                "traceback": traceback.format_exc()
+            })
 
         return profile_dict
     
@@ -366,11 +384,18 @@ async def extract_profile_json(input_data: ProfileInput):
 
             db.save_psychology_profile(chat_id=user_id, profile_data=profile_dict)
 
+            saved_test_count = 0
             if input_data.text_messages:
-                for msg in input_data.text_messages:
-                    if isinstance(msg, str) and "آزمون روانشناختی:" in msg:
+                for idx, msg in enumerate(input_data.text_messages):
+                    if isinstance(msg, str) and ("آزمون" in msg or "تست" in msg or "test" in msg.lower()):
                         lines = [l.strip() for l in msg.strip().split("\n") if l.strip()]
-                        test_title = lines[0].replace("آزمون روانشناختی:", "").strip()
+                        first_line = lines[0] if lines else f"تست {idx}"
+                        test_title = (
+                            first_line
+                            .replace("آزمون روانشناختی:", "")
+                            .replace("آزمون:", "")
+                            .strip()
+                        ) or f"تست {idx}"
                         db.save_test_result(
                             chat_id=user_id,
                             test_name=test_title,
@@ -378,10 +403,21 @@ async def extract_profile_json(input_data: ProfileInput):
                             pdf_path="",
                             final_analyze=msg
                         )
+                        saved_test_count += 1
 
-            log.info(f"✅ User {user_id} (JSON) and test results persisted into Brain DB")
+            log.info(f"✅ User {user_id} (JSON) and {saved_test_count} test results persisted into Brain DB")
+            write_event("profile_persist_success", {
+                "user_id": user_id,
+                "tests_saved": saved_test_count
+            })
         except Exception as save_err:
-            log.warning(f"⚠️ Could not persist JSON user data into brain: {save_err}")
+            import traceback
+            log.exception(f"❌ Could not persist JSON user data into brain for user {user_id}: {save_err}")
+            write_event("profile_persist_error", {
+                "user_id": user_id,
+                "error": str(save_err),
+                "traceback": traceback.format_exc()
+            })
 
         # Return the profile dict directly (FastAPI will serialize to JSON)
         return profile_dict
