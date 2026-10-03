@@ -90,19 +90,20 @@ def generate_final_coaching_report(
     ]
 
     try:
-        from app.agents.skills import safe_extract_text, extract_clean_json
-        from app.agents.school_logger import log_graduation_report
-
         response = llm.invoke(messages)
-        raw_text = safe_extract_text(response.content)
-        report = extract_clean_json(raw_text)
-
+        content = response.content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        report = json.loads(content.strip())
         report["overall_score"] = avg_score
-        log_graduation_report(report)
         return report
     except Exception as e:
         logger.error(f"Error generating final coaching report: {e}", exc_info=True)
-        report = {
+        return {
             "student_name": student_name,
             "overall_score": avg_score,
             "executive_summary": "تبریک! شما دوره ۱۲ روزه مربی‌گری تحصیلی را با موفقیت و تعهد کامل به پایان رساندید.",
@@ -112,9 +113,4 @@ def generate_final_coaching_report(
             "future_action_plan": ["ادامه چرخه مطالعه پومودورو و مرورهای منظم هفتگی"],
             "final_coach_message": "موفقیت نتیجه اقدامات کوچک و مستمر است. همیشه به توانایی‌های خود باور داشته باش!"
         }
-        try:
-            from app.agents.school_logger import log_graduation_report
-            log_graduation_report(report)
-        except Exception:
-            pass
-        return report
+

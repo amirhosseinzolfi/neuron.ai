@@ -78,25 +78,17 @@ def evaluate_school_homework(
     ]
 
     try:
-        from app.agents.skills import safe_extract_text, extract_clean_json
-        from app.agents.school_logger import log_homework_evaluation
-
         response = llm.invoke(messages)
-        raw_text = safe_extract_text(response.content)
-        result = extract_clean_json(raw_text)
-
+        content = response.content.strip()
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.startswith("```"):
+            content = content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        result = json.loads(content.strip())
         passed = bool(result.get("passed", False))
         result["next_step_unlocked"] = passed
-
-        # Rich terminal logging
-        log_homework_evaluation(
-            day=day_number,
-            score=int(result.get("score", 0)),
-            passed=passed,
-            feedback=result.get("feedback", ""),
-            strengths=result.get("strengths_identified", []),
-            improvements=result.get("areas_for_improvement", [])
-        )
         return result
     except Exception as e:
         logger.error(f"Error evaluating homework: {e}", exc_info=True)
@@ -104,25 +96,12 @@ def evaluate_school_homework(
         word_count = len(submission.strip().split())
         passed = word_count >= 15
         score = 75 if passed else 40
-        feedback = "تکلیف شما بررسی شد. تلاش خوبی بود و با دقت ثبت شده است." if passed else "تکلیف ارسال‌شده بسیار کوتاه است؛ لطفاً جزییات بیشتری از تمرین روزانه بنویسید."
-        fallback_res = {
+        return {
             "passed": passed,
             "score": score,
-            "feedback": feedback,
+            "feedback": "تکلیف شما بررسی شد. تلاش خوبی بود و با دقت ثبت شده است." if passed else "تکلیف ارسال‌شده بسیار کوتاه است؛ لطفاً جزییات بیشتری از تمرین روزانه بنویسید.",
             "strengths_identified": ["اقدام به انجام و ارسال تکلیف"],
             "areas_for_improvement": ["افزایش عمق تحلیل و گزارش"],
             "next_step_unlocked": passed
         }
-        try:
-            from app.agents.school_logger import log_homework_evaluation
-            log_homework_evaluation(
-                day=day_number,
-                score=score,
-                passed=passed,
-                feedback=feedback,
-                strengths=fallback_res["strengths_identified"],
-                improvements=fallback_res["areas_for_improvement"]
-            )
-        except Exception:
-            pass
-        return fallback_res
+
