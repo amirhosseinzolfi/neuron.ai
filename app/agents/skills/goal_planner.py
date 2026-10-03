@@ -46,15 +46,11 @@ def plan_goal_milestones(goal_text: str, user_profile: Dict[str, Any] = None) ->
     ]
 
     try:
+        from app.agents.skills import safe_extract_text, extract_clean_json
+
         response = llm.invoke(messages)
-        content = response.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        return json.loads(content.strip())
+        raw_text = safe_extract_text(response.content)
+        return extract_clean_json(raw_text)
     except Exception as e:
         return {
             "goal_summary": goal_text,

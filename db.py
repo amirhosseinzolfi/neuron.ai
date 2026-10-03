@@ -531,9 +531,9 @@ def get_psychology_profile(chat_id: int) -> dict:
         return None
         
     try:
-        with open(row['psychology_profile'], 'r') as f:
+        with open(row['psychology_profile'], 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError):
         return None
 
 def has_received_gift(chat_id: int) -> bool:
@@ -839,3 +839,6 @@ def reset_student_school_plan(chat_id: str) -> bool:
     return True
 
 
+if __name__ == "__main__":
+    init_db()
+    print("Database schema initialized and updated successfully at 'database/bot.db'.")

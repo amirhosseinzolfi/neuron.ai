@@ -132,7 +132,7 @@ def load_existing_profile(user_id: str) -> Optional[UserProfile]:
     
     if os.path.exists(profile_path):
         try:
-            with open(profile_path, "r") as f:
+            with open(profile_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return UserProfile(**data)
         except Exception as e:
@@ -145,8 +145,8 @@ def save_profile(user_id: str, profile: UserProfile) -> str:
     """Save profile to file and return path."""
     profile_path = get_profile_path(user_id)
     
-    with open(profile_path, "w") as f:
-        json.dump(profile.model_dump(), f, indent=2)
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profile.model_dump(), f, indent=2, ensure_ascii=False)
     
     log.info(f"Profile saved: {profile_path}")
     return profile_path
@@ -223,7 +223,7 @@ def build_multimodal_human_message(text: str, media_files: List[dict]) -> HumanM
                 })
             
             elif media_type == "text":
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     text_content = f.read()
                 content_parts.append({
                     "type": "text",

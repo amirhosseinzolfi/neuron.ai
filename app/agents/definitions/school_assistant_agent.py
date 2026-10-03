@@ -27,10 +27,15 @@ from app.agents.skills.final_report_generator import generate_final_coaching_rep
 from app.agents.school_logger import (
     log_student_session_start,
     log_tool_execution,
+    log_tool_result,
+    log_plan_status,
+    log_daily_mission,
+    log_plan_generated,
     log_day_progression,
     log_graduation_report,
     log_brain_and_memory_context,
-    log_turn_telemetry
+    log_turn_telemetry,
+    log_homework_evaluation
 )
 from ai_utils import get_neuron_llm
 import db
@@ -56,24 +61,40 @@ def check_or_create_school_plan(
     اگر برنامه ندارد، با دریافت مقطع تحصیلی، رشته، چالش اصلی و ساعت مطالعه روزانه برنامه ۱۲ روزه ایجاد و ذخیره می‌شود.
     """
     uid = user_id or active_student_id.get()
+    log_tool_execution("check_or_create_school_plan", {
+        "user_id": uid,
+        "academic_grade": academic_grade,
+        "study_field": study_field,
+        "main_bottleneck": main_bottleneck,
+        "daily_study_hours": daily_study_hours
+    })
+
     existing_plan = db.get_student_school_plan(uid)
 
     if existing_plan and existing_plan.get("days"):
         cur_day = existing_plan.get("current_day", 1)
         status = existing_plan.get("status", "active")
         if status == "completed":
-            return "دانش‌آموز گرامی، شما قبلاً دوره ۱۲ روزه را با موفقیت به پایان رسانده‌اید! می‌توانید کارنامه نهایی را دریافت کنید."
+            res = "دانش‌آموز گرامی، شما قبلاً دوره ۱۲ روزه را با موفقیت به پایان رسانده‌اید! می‌توانید کارنامه نهایی را دریافت کنید."
+            log_plan_status(uid, cur_day, total_days=existing_plan.get("total_days", 12), status=status, theme="دوره تکمیل شده", curriculum_goal=existing_plan.get("curriculum_goal"))
+            log_tool_result("check_or_create_school_plan", res)
+            return res
         day_info = next((d for d in existing_plan.get("days", []) if d.get("day") == cur_day), None)
         theme = day_info.get("theme", "نامشخص") if day_info else ""
-        return f"برنامه تحصیلی فعال یافت شد: هم‌اکنون در روز {cur_day} از ۱۲ روز هستید. موضوع امروز: '{theme}'."
+        log_plan_status(uid, cur_day, total_days=existing_plan.get("total_days", 12), status=status, theme=theme, curriculum_goal=existing_plan.get("curriculum_goal"))
+        res = f"برنامه تحصیلی فعال یافت شد: هم‌اکنون در روز {cur_day} از ۱۲ روز هستید. موضوع امروز: '{theme}'."
+        log_tool_result("check_or_create_school_plan", res)
+        return res
 
     # If parameters missing, prompt coach to ask them
     if not (academic_grade or study_field or main_bottleneck):
-        return (
+        res = (
             "برنامه فعالی برای کاربر ثبت نشده است. لطفاً از کاربر اطلاعات پایه‌ای تحصیلی "
             "(مقطع تحصیلی، رشته یا هدف کنکور/امتحانات، بزرگترین مانع مثل اهمال‌کاری یا حواس‌پرتی، "
             "و میانگین ساعت مطالعه روزانه) را جویا شوید تا برنامه ۱۲ روزه اختصاصی تولید شود."
         )
+        log_tool_result("check_or_create_school_plan", res)
+        return res
 
     # Diagnostic data
     diag_data = {
@@ -95,13 +116,16 @@ def check_or_create_school_plan(
     )
 
     db.save_student_school_plan(uid, new_plan, diagnostic_data=diag_data, status="active")
+    log_plan_generated(new_plan)
     day_1 = new_plan.get("days", [{}])[0]
-    return (
+    res = (
         f"✅ برنامه جامع ۱۲ روزه با موفقیت برای شما طراحی و ذخیره شد!\n"
         f"🎯 هدف دوره: {new_plan.get('curriculum_goal')}\n"
         f"📅 امروز روز ۱ است: '{day_1.get('theme')}'\n"
         f"📝 تکلیف امروز: {day_1.get('homework_assignment')}"
     )
+    log_tool_result("check_or_create_school_plan", res)
+    return res
 
 
 @tool
@@ -110,22 +134,39 @@ def get_current_day_mission(user_id: Optional[str] = None) -> str:
     دریافت درس، تمرین‌ها، اهداف و تکلیف روز فعال دانش‌آموز در برنامه ۱۲ روزه.
     """
     uid = user_id or active_student_id.get()
+    log_tool_execution("get_current_day_mission", {"user_id": uid})
+
     plan = db.get_student_school_plan(uid)
 
     if not plan:
-        return "هیچ برنامه فعالی وجود ندارد. ابتدا باید اطلاعات تحصیلی ثبت و برنامه ۱۲ روزه ایجاد شود."
+        res = "هیچ برنامه فعالی وجود ندارد. ابتدا باید اطلاعات تحصیلی ثبت و برنامه ۱۲ روزه ایجاد شود."
+        log_tool_result("get_current_day_mission", res)
+        return res
 
     if plan.get("status") == "completed":
-        return "دوره ۱۲ روزه با موفقیت تکمیل شده است. برای مشاهده گزارش نهایی درخواست کارنامه دهید."
+        res = "دوره ۱۲ روزه با موفقیت تکمیل شده است. برای مشاهده گزارش نهایی درخواست کارنامه دهید."
+        log_tool_result("get_current_day_mission", res)
+        return res
 
     cur_day = plan.get("current_day", 1)
     day_info = next((d for d in plan.get("days", []) if d.get("day") == cur_day), None)
 
     if not day_info:
-        return f"اطلاعات روز {cur_day} یافت نشد."
+        res = f"اطلاعات روز {cur_day} یافت نشد."
+        log_tool_result("get_current_day_mission", res)
+        return res
+
+    log_daily_mission(
+        day=cur_day,
+        theme=day_info.get("theme", ""),
+        objective=day_info.get("learning_objective", ""),
+        exercises=day_info.get("daily_exercises", []),
+        homework=day_info.get("homework_assignment", ""),
+        passing_criteria=day_info.get("passing_criteria", "")
+    )
 
     exercises_text = "\n".join(f"  • {e}" for e in day_info.get("daily_exercises", []))
-    return (
+    res = (
         f"📌 **ماموریت روز {cur_day} از ۱۲:**\n"
         f"🔹 **موضوع:** {day_info.get('theme')}\n"
         f"🎯 **هدف:** {day_info.get('learning_objective')}\n"
@@ -135,6 +176,8 @@ def get_current_day_mission(user_id: Optional[str] = None) -> str:
         f"⚖️ **معیار قبولی:** {day_info.get('passing_criteria')}\n\n"
         f"پس از انجام تمرین، تکلیف خود را برای بررسی و باز شدن روز بعد ارسال کنید."
     )
+    log_tool_result("get_current_day_mission", res)
+    return res
 
 
 @tool
@@ -144,15 +187,24 @@ def submit_and_evaluate_homework(submission_text: str, user_id: Optional[str] = 
     در صورت قبولی، دانش‌آموز به روز بعد هدایت می‌شود؛ در صورت عدم قبولی، راهنمایی برای اصلاح ارائه می‌گردد.
     """
     uid = user_id or active_student_id.get()
+    log_tool_execution("submit_and_evaluate_homework", {
+        "user_id": uid,
+        "submission_text": submission_text
+    })
+
     plan = db.get_student_school_plan(uid)
 
     if not plan:
-        return "ابتدا باید برنامه تحصیلی ۱۲ روزه ایجاد شود."
+        res = "ابتدا باید برنامه تحصیلی ۱۲ روزه ایجاد شود."
+        log_tool_result("submit_and_evaluate_homework", res)
+        return res
 
     cur_day = plan.get("current_day", 1)
     day_info = next((d for d in plan.get("days", []) if d.get("day") == cur_day), None)
     if not day_info:
-        return f"اطلاعات روز {cur_day} یافت نشد."
+        res = f"اطلاعات روز {cur_day} یافت نشد."
+        log_tool_result("submit_and_evaluate_homework", res)
+        return res
 
     user_row = db.get_user(uid) or {}
 
@@ -180,24 +232,29 @@ def submit_and_evaluate_homework(submission_text: str, user_id: Optional[str] = 
 
     if passed:
         new_day = (updated_plan or {}).get("current_day", cur_day + 1)
+        log_day_progression(old_day=cur_day, new_day=new_day, total_days=plan.get("total_days", 12))
         if cur_day == 12 or (updated_plan and updated_plan.get("status") == "completed"):
-            return (
+            res = (
                 f"🎉 تبریک شگفت‌انگیز! تکلیف روز ۱۲ با نمره {score}/100 با موفقیت تأیید شد!\n"
                 f"شما دوره ۱۲ روزه مربی‌گری تحصیلی را به پایان رساندید.\n"
                 f"بازخورد مربی: {feedback}\n"
                 f"اکنون می‌توانید کارنامه جامع نهایی خود را دریافت کنید."
             )
-        return (
-            f"✅ آفرین! تکلیف روز {cur_day} با نمره {score}/100 مورد تأیید قرار گرفت.\n"
-            f"💡 بازخورد مربی: {feedback}\n\n"
-            f"🔓 قفل روز {new_day} باز شد! برای شروع روز جدید آماده‌اید؟"
-        )
+        else:
+            res = (
+                f"✅ آفرین! تکلیف روز {cur_day} با نمره {score}/100 مورد تأیید قرار گرفت.\n"
+                f"💡 بازخورد مربی: {feedback}\n\n"
+                f"🔓 قفل روز {new_day} باز شد! برای شروع روز جدید آماده‌اید؟"
+            )
     else:
-        return (
+        res = (
             f"⚠️ تکلیف روز {cur_day} نیاز به تکمیل و بازنگری دارد (نمره: {score}/100).\n"
             f"نکات اصلاحی مربی: {feedback}\n"
             f"لطفاً تمرین را کامل‌تر انجام دهید و مجدداً ارسال کنید تا بتوانید به روز بعد صعود کنید."
         )
+
+    log_tool_result("submit_and_evaluate_homework", res)
+    return res
 
 
 @tool
@@ -206,15 +263,20 @@ def generate_12day_final_report(user_id: Optional[str] = None) -> str:
     تولید کارنامه و گزارش تحلیلی جامع پایان دوره ۱۲ روزه پس از اتمام تمامی روزها.
     """
     uid = user_id or active_student_id.get()
+    log_tool_execution("generate_12day_final_report", {"user_id": uid})
+
     plan = db.get_student_school_plan(uid)
 
     if not plan:
-        return "هیچ برنامه‌ای برای این کاربر ثبت نشده است."
+        res = "هیچ برنامه‌ای برای این کاربر ثبت نشده است."
+        log_tool_result("generate_12day_final_report", res)
+        return res
 
     # Check if final report already saved
     if plan.get("final_report"):
         rep = plan["final_report"]
-        return (
+        log_graduation_report(rep)
+        res = (
             f"🎓 **کارنامه جامع پایان دوره ۱۲ روزه تحصیلی:**\n"
             f"🌟 **امتیاز کل:** {rep.get('overall_score')}/100\n"
             f"📋 **خلاصه تحول:** {rep.get('executive_summary')}\n"
@@ -223,12 +285,15 @@ def generate_12day_final_report(user_id: Optional[str] = None) -> str:
             f"🚀 **نقشه راه آینده:** {', '.join(rep.get('future_action_plan', []))}\n\n"
             f"💌 **پیام پایانی مربی:** {rep.get('final_coach_message')}"
         )
+        log_tool_result("generate_12day_final_report", res)
+        return res
 
     user_row = db.get_user(uid) or {}
     report = generate_final_coaching_report(user_row, plan)
     db.save_student_final_report(uid, report)
+    log_graduation_report(report)
 
-    return (
+    res = (
         f"🎓 **کارنامه جامع پایان دوره ۱۲ روزه تحصیلی:**\n"
         f"🌟 **امتیاز کل دوره:** {report.get('overall_score')}/100\n"
         f"📋 **خلاصه عملکرد:** {report.get('executive_summary')}\n"
@@ -237,6 +302,8 @@ def generate_12day_final_report(user_id: Optional[str] = None) -> str:
         f"🚀 **نقشه راه ۳۰ روز آینده:** {', '.join(report.get('future_action_plan', []))}\n\n"
         f"💌 **پیام پایانی مربی:** {report.get('final_coach_message')}"
     )
+    log_tool_result("generate_12day_final_report", res)
+    return res
 
 
 # ── Agent Class & Workflow ───────────────────────────────────────────

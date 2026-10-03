@@ -30,7 +30,7 @@ from rich.table import Table
 logger = logging.getLogger("school_assistant")
 
 try:
-    console = Console(highlight=False, soft_wrap=True)
+    console = Console(highlight=False, soft_wrap=True, force_terminal=True)
 except Exception:
     console = None
 
@@ -41,6 +41,8 @@ def _safe_print(renderable):
         return
     try:
         console.print(renderable)
+        if hasattr(sys.stdout, "flush"):
+            sys.stdout.flush()
     except Exception as e:
         logger.debug(f"Console print fallback: {e}")
 
@@ -57,8 +59,6 @@ def log_student_session_start(user_id: str, message: str, current_day: int = 1, 
         status_badge = f"[{status_color}]● {status.upper()}[/{status_color}]"
 
         clean_msg = message.strip() if message else "(بدون متن)"
-        if len(clean_msg) > 120:
-            clean_msg = clean_msg[:117] + "..."
 
         table.add_row("شناسه دانش‌آموز:", f"[bold yellow]{user_id}[/bold yellow]  {day_badge}  {status_badge}")
         table.add_row("پیام دریافتی:", f"[italic]{clean_msg}[/italic]")
@@ -75,23 +75,104 @@ def log_student_session_start(user_id: str, message: str, current_day: int = 1, 
 
 
 def log_tool_execution(tool_name: str, args: Dict[str, Any]):
-    """Logs a tool call with its arguments."""
+    """Logs a tool call with its full unclipped arguments in a clear visual panel."""
     try:
-        arg_lines = []
-        for k, v in args.items():
-            if v is not None and str(v).strip():
-                val_str = str(v)
-                if len(val_str) > 80:
-                    val_str = val_str[:77] + "..."
-                arg_lines.append(f"[dim]{k}:[/dim] [bright_white]{val_str}[/bright_white]")
+        table = Table.grid(padding=(0, 1))
+        table.add_column(style="bold yellow", justify="right", width=20)
+        table.add_column(style="bright_white")
 
-        args_rendered = " | ".join(arg_lines) if arg_lines else "[dim]بدون پارامتر ورودی[/dim]"
-        _safe_print(
-            f"  [bold yellow]>> فراخوانی ابزار:[/bold yellow] [bold bright_magenta]{tool_name}[/bold bright_magenta] "
-            f"({args_rendered})"
-        )
-    except Exception:
+        for k, v in args.items():
+            if v is not None:
+                val_str = str(v).strip()
+                table.add_row(f"{k}:", val_str)
+
+        _safe_print(Panel(
+            table,
+            title=f"[bold bright_magenta]🛠️ فراخوانی ابزار: {tool_name}[/bold bright_magenta]",
+            border_style="bright_yellow",
+            padding=(0, 2)
+        ))
+    except Exception as e:
         logger.info(f"[SchoolAssistant Tool] {tool_name} args={args}")
+
+
+def log_tool_result(tool_name: str, result_content: Any):
+    """Logs the output returned by a tool in a clean visual panel."""
+    try:
+        clean_res = str(result_content).strip()
+        _safe_print(Panel(
+            clean_res,
+            title=f"[bold bright_cyan]📋 خروجی ابزار: {tool_name}[/bold bright_cyan]",
+            border_style="bright_cyan",
+            padding=(0, 2)
+        ))
+    except Exception as e:
+        logger.info(f"[SchoolAssistant Tool Result] {tool_name}: {result_content}")
+
+
+def log_plan_status(
+    user_id: str,
+    current_day: int,
+    total_days: int = 12,
+    status: str = "active",
+    theme: Optional[str] = None,
+    curriculum_goal: Optional[str] = None
+):
+    """Logs the current status and objective of an existing student plan."""
+    try:
+        table = Table.grid(padding=(0, 1))
+        table.add_column(style="bold cyan", justify="right", width=20)
+        table.add_column(style="bright_white")
+
+        table.add_row("دانش‌آموز:", f"[bold yellow]{user_id}[/bold yellow] | وضعیت: [bold green]{status.upper()}[/bold green]")
+        table.add_row("مرحله فعلی:", f"[bold bright_blue]روز {current_day} از {total_days}[/bold bright_blue]")
+        if theme:
+            table.add_row("موضوع گام امروز:", f"[bold bright_yellow]{theme}[/bold bright_yellow]")
+        if curriculum_goal:
+            table.add_row("هدف کلی دوره:", f"[italic]{curriculum_goal}[/italic]")
+
+        _safe_print(Panel(
+            table,
+            title="[bold green]📌 بررسی وضعیت پرونده تحصیلی دانش‌آموز[/bold green]",
+            border_style="green",
+            padding=(0, 2)
+        ))
+    except Exception as e:
+        logger.info(f"[SchoolAssistant Plan Status] User={user_id} Day={current_day}")
+
+
+def log_daily_mission(
+    day: int,
+    theme: str,
+    objective: str,
+    exercises: List[str],
+    homework: str,
+    passing_criteria: str
+):
+    """Prints a structured card displaying the active day's mission, exercises, and homework."""
+    try:
+        table = Table.grid(padding=(0, 1))
+        table.add_column(style="bold cyan", justify="right", width=20)
+        table.add_column(style="bright_white")
+
+        table.add_row("موضوع روز:", f"[bold bright_yellow]{theme}[/bold bright_yellow]")
+        table.add_row("هدف یادگیری:", f"{objective}")
+
+        if exercises:
+            ex_str = "\n".join(f"  • {e}" for e in exercises)
+            table.add_row("تمرین‌های روزانه:", f"[bright_white]{ex_str}[/bright_white]")
+
+        table.add_row("تکلیف شبانه:", f"[bold bright_cyan]{homework}[/bold bright_cyan]")
+        table.add_row("معیار قبولی:", f"[italic yellow]{passing_criteria}[/italic yellow]")
+
+        _safe_print(Panel(
+            table,
+            title=f"[bold bright_blue]🎯 ماموریت آموزشی روز {day} از ۱۲[/bold bright_blue]",
+            border_style="bright_blue",
+            padding=(0, 2)
+        ))
+    except Exception as e:
+        logger.info(f"[SchoolAssistant Mission] Day {day} Theme={theme}")
 
 
 def log_plan_generated(plan: Dict[str, Any]):
@@ -116,8 +197,6 @@ def log_plan_generated(plan: Dict[str, Any]):
             day_num = d.get("day", "?")
             theme = d.get("theme", "")
             hw = d.get("homework_assignment", "")
-            if len(hw) > 60:
-                hw = hw[:57] + "..."
             table.add_row(f"روز {day_num}", theme, hw)
 
         _safe_print(Panel(
@@ -130,17 +209,42 @@ def log_plan_generated(plan: Dict[str, Any]):
         logger.info(f"[SchoolAssistant Plan Generated] {plan.get('curriculum_goal')}")
 
 
-def log_homework_evaluation(day: int, score: int, passed: bool, feedback: str, strengths: List[str] = None, improvements: List[str] = None):
-    """Prints a structured card showing homework grading and progression decision."""
+def log_homework_evaluation(
+    day: int,
+    score: int,
+    passed: bool,
+    feedback: str,
+    strengths: List[str] = None,
+    improvements: List[str] = None,
+    submission: Optional[str] = None,
+    criteria: Optional[str] = None,
+    objective: Optional[str] = None,
+    evaluation_mode: Optional[str] = None
+):
+    """Prints a structured card showing full homework grading, submitted text, and progression decision."""
     try:
         badge = "[bold white on green] قبولی در مرحله [OK] [/bold white on green]" if passed else "[bold white on red] نیاز به بازنگری [/bold white on red]"
         score_color = "bright_green" if score >= 75 else ("yellow" if score >= 60 else "bright_red")
 
         table = Table.grid(padding=(0, 1))
-        table.add_column(style="bold cyan", justify="right")
+        table.add_column(style="bold cyan", justify="right", width=22)
         table.add_column(style="bright_white")
 
         table.add_row("وضعیت تکلیف:", f"روز {day} از ۱۲ | {badge} | نمره: [{score_color}]{score}/100[/{score_color}]")
+
+        if evaluation_mode:
+            table.add_row("شیوه ارزیابی:", f"[bright_yellow]{evaluation_mode}[/bright_yellow]")
+
+        if objective:
+            table.add_row("هدف آموزشی روز:", f"{objective}")
+
+        if criteria:
+            table.add_row("معیار قبولی روز:", f"[italic yellow]{criteria}[/italic yellow]")
+
+        if submission:
+            clean_sub = submission.strip()
+            table.add_row("متن ارسالی کاربر:", f"[italic bright_white]{clean_sub}[/italic bright_white]")
+
         table.add_row("بازخورد مربی:", f"[italic]{feedback}[/italic]")
 
         if strengths:
@@ -150,12 +254,13 @@ def log_homework_evaluation(day: int, score: int, passed: bool, feedback: str, s
 
         _safe_print(Panel(
             table,
-            title=f"[bold]ارزیابی تکلیف روز {day}[/bold]",
+            title=f"[bold]📝 نتیجه ارزیابی تکلیف روز {day}[/bold]",
             border_style="green" if passed else "red",
             padding=(0, 2)
         ))
     except Exception as e:
         logger.info(f"[SchoolAssistant Homework] Day {day} Score={score} Passed={passed}")
+
 
 
 def log_day_progression(old_day: int, new_day: int, total_days: int = 12):
