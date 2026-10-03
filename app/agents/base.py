@@ -12,18 +12,19 @@ from typing_extensions import TypedDict
 from langchain_core.messages import AnyMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph.message import add_messages
+from langgraph.graph import MessagesState
 from langgraph.pregel import Pregel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
+from app.agents.session_handler import SessionMessageHandler
 from app.services.brain_service import get_brain_service
 
 
-class AgentState(TypedDict, total=False):
+class AgentState(MessagesState, total=False):
     """
     Standard state schema for all Neuron agents.
-    Uses add_messages reducer for LangChain message progression.
+    Inherits from LangGraph MessagesState, providing 'messages: Annotated[list[AnyMessage], add_messages]'.
     """
-    messages: Annotated[List[AnyMessage], add_messages]
     user_id: str
     chat_id: str
     brain_context: Dict[str, Any]
@@ -89,45 +90,30 @@ class BaseAgent(ABC):
     ) -> Dict[str, Any]:
         """
         Execute agent with unified brain context and auto-persist to Mem0 memory.
+        Uses standard SessionMessageHandler for message formatting and thread config.
         """
         brain_service = get_brain_service()
         brain_prompt = brain_service.build_brain_context_prompt(brain_snapshot)
 
         graph = self.get_graph(checkpointer=checkpointer)
-        thread_id = f"{user_id}:{self.name}:{chat_id}"
-        config = {"configurable": {"thread_id": thread_id}}
+        config = SessionMessageHandler.build_session_config(user_id, self.name, chat_id)
+        human_msg = SessionMessageHandler.to_human_message(message)
 
         initial_state: AgentState = {
-            "messages": [HumanMessage(content=message)],
+            "messages": [human_msg],
             "user_id": str(user_id),
             "chat_id": str(chat_id),
             "brain_context": brain_snapshot,
             "brain_prompt": brain_prompt,
-            "metadata": {"agent": self.name, "thread_id": thread_id}
+            "metadata": {"agent": self.name, "thread_id": config["configurable"]["thread_id"]}
         }
 
         # Run graph
         result = await graph.ainvoke(initial_state, config=config)
 
-        # Extract last AI message content
+        # Extract last AI message content via standard helper
         messages = result.get("messages", [])
-        last_ai_content = ""
-        for m in reversed(messages):
-            if isinstance(m, AIMessage):
-                content = m.content
-                if isinstance(content, str):
-                    last_ai_content = content
-                elif isinstance(content, list):
-                    parts = []
-                    for block in content:
-                        if isinstance(block, dict) and "text" in block:
-                            parts.append(block["text"])
-                        elif isinstance(block, str):
-                            parts.append(block)
-                    last_ai_content = "\n".join(parts) if parts else str(content)
-                else:
-                    last_ai_content = str(content)
-                break
+        last_ai_content = SessionMessageHandler.extract_last_ai_content(messages)
 
         # Automatically synchronize interaction with the user's brain memory in background
         if message and last_ai_content:
@@ -162,16 +148,16 @@ class BaseAgent(ABC):
         brain_prompt = brain_service.build_brain_context_prompt(brain_snapshot)
 
         graph = self.get_graph(checkpointer=checkpointer)
-        thread_id = f"{user_id}:{self.name}:{chat_id}"
-        config = {"configurable": {"thread_id": thread_id}}
+        config = SessionMessageHandler.build_session_config(user_id, self.name, chat_id)
+        human_msg = SessionMessageHandler.to_human_message(message)
 
         initial_state: AgentState = {
-            "messages": [HumanMessage(content=message)],
+            "messages": [human_msg],
             "user_id": str(user_id),
             "chat_id": str(chat_id),
             "brain_context": brain_snapshot,
             "brain_prompt": brain_prompt,
-            "metadata": {"agent": self.name, "thread_id": thread_id}
+            "metadata": {"agent": self.name, "thread_id": config["configurable"]["thread_id"]}
         }
 
         accumulated_ai_response = ""

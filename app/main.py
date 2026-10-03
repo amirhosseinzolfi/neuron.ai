@@ -9,6 +9,7 @@ from app.api.chat_router import router as chat_router
 from app.api.tools_router import router as tools_router
 from app.api.brain_router import router as brain_router
 from app.api.agents_router import router as agents_router
+from app.api.school_assistant_router import router as school_assistant_router
 
 app = FastAPI(title="Neuron AI Platform API", version="2.0.0")
 
@@ -29,6 +30,7 @@ app.include_router(chat_router)
 app.include_router(tools_router)
 app.include_router(brain_router)
 app.include_router(agents_router)
+app.include_router(school_assistant_router)
 
 @app.get("/")
 async def root():

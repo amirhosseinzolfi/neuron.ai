@@ -86,35 +86,23 @@ class TherapistAgent(BaseAgent):
 
     def build_graph(self, checkpointer: Optional[BaseCheckpointSaver] = None) -> Pregel:
         """
-        Builds the LangGraph cyclical execution workflow:
-        START -> agent_node -> (has tools? -> tools_node -> agent_node) -> END
+        Builds the standard LangGraph cyclical execution workflow:
+        START -> agent_node -> (tools_condition -> tools -> agent_node) -> END
         """
+        from langgraph.prebuilt import tools_condition
+        from app.agents.session_handler import SessionMessageHandler
+
         llm = get_neuron_llm()
         llm_with_tools = llm.bind_tools(self.tools)
 
         def agent_node(state: AgentState) -> Dict[str, Any]:
-            # 1. System instruction
-            system_prompt = self.system_instruction
-
-            # 2. Injected Brain Context (Profile + Tests + Mem0 Facts)
-            brain_prompt = state.get("brain_prompt", "")
-            if brain_prompt:
-                system_prompt = f"{system_prompt}\n\n=== اطلاعات مغز کاربر (User Brain Context) ===\n{brain_prompt}"
-
-            messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
-
-            # 3. Call LLM
+            messages = SessionMessageHandler.prepare_session_messages(
+                messages=state.get("messages", []),
+                system_instruction=self.system_instruction,
+                brain_prompt=state.get("brain_prompt", "")
+            )
             response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
-
-        def should_continue(state: AgentState) -> str:
-            messages = state.get("messages", [])
-            if not messages:
-                return END
-            last_message = messages[-1]
-            if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-                return "tools"
-            return END
 
         # Build Graph
         workflow = StateGraph(AgentState)
@@ -122,7 +110,7 @@ class TherapistAgent(BaseAgent):
         workflow.add_node("tools", ToolNode(self.tools))
 
         workflow.add_edge(START, "agent")
-        workflow.add_conditional_edges("agent", should_continue, ["tools", END])
+        workflow.add_conditional_edges("agent", tools_condition)
         workflow.add_edge("tools", "agent")
 
         return workflow.compile(checkpointer=checkpointer)

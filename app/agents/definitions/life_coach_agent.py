@@ -78,34 +78,27 @@ class LifeCoachAgent(BaseAgent):
         }
 
     def build_graph(self, checkpointer: Optional[BaseCheckpointSaver] = None) -> Pregel:
+        from langgraph.prebuilt import tools_condition
+        from app.agents.session_handler import SessionMessageHandler
+
         llm = get_neuron_llm()
         llm_with_tools = llm.bind_tools(self.tools)
 
         def coach_node(state: AgentState) -> Dict[str, Any]:
-            system_prompt = self.system_instruction
-            brain_prompt = state.get("brain_prompt", "")
-            if brain_prompt:
-                system_prompt = f"{system_prompt}\n\n=== اطلاعات مغز کاربر (User Brain Context) ===\n{brain_prompt}"
-
-            messages = [SystemMessage(content=system_prompt)] + list(state.get("messages", []))
+            messages = SessionMessageHandler.prepare_session_messages(
+                messages=state.get("messages", []),
+                system_instruction=self.system_instruction,
+                brain_prompt=state.get("brain_prompt", "")
+            )
             response = llm_with_tools.invoke(messages)
             return {"messages": [response]}
-
-        def should_continue(state: AgentState) -> str:
-            messages = state.get("messages", [])
-            if not messages:
-                return END
-            last_message = messages[-1]
-            if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-                return "tools"
-            return END
 
         workflow = StateGraph(AgentState)
         workflow.add_node("coach", coach_node)
         workflow.add_node("tools", ToolNode(self.tools))
 
         workflow.add_edge(START, "coach")
-        workflow.add_conditional_edges("coach", should_continue, ["tools", END])
+        workflow.add_conditional_edges("coach", tools_condition)
         workflow.add_edge("tools", "coach")
 
         return workflow.compile(checkpointer=checkpointer)

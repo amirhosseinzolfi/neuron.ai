@@ -23,13 +23,23 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 CHECKPOINT_DB_PATH = "database/psychology_bot.db"
 _async_checkpointer: Optional[AsyncSqliteSaver] = None
 _conn: Optional[aiosqlite.Connection] = None
+_loop_id: Optional[int] = None
 
 async def get_async_checkpointer() -> AsyncSqliteSaver:
-    global _async_checkpointer, _conn
-    if _async_checkpointer is None:
+    global _async_checkpointer, _conn, _loop_id
+    import asyncio
+    current_loop = asyncio.get_running_loop()
+    current_loop_id = id(current_loop)
+    if _async_checkpointer is None or _conn is None or _loop_id != current_loop_id:
+        try:
+            if _conn is not None:
+                await _conn.close()
+        except Exception:
+            pass
         _conn = await aiosqlite.connect(CHECKPOINT_DB_PATH)
         _async_checkpointer = AsyncSqliteSaver(conn=_conn)
         await _async_checkpointer.setup()
+        _loop_id = current_loop_id
     return _async_checkpointer
 
 

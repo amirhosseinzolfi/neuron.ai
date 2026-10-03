@@ -626,7 +626,10 @@ def handle_agent_chat_message(update: Update, context: CallbackContext):
             ]
             send_formatted_text(update, agent_reply, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            send_formatted_text(update, f"❌ خطا در پردازش پاسخ ایجنت: {res.get('error', 'خطای سرور')}")
+            import html
+            raw_err = str(res.get('error', 'خطای سرور'))
+            clean_err = html.escape(raw_err[:300])
+            send_formatted_text(update, f"❌ خطا در پردازش پاسخ ایجنت:\n<code>{clean_err}</code>")
     except Exception as e:
         try:
             waiting_message.delete()

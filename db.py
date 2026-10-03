@@ -102,6 +102,21 @@ def init_db():
         FOREIGN KEY (user_package_id) REFERENCES user_packages(id)
     )
     """)
+
+    # Create 12-day student school plans table
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS student_school_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id TEXT UNIQUE,
+        current_day INTEGER DEFAULT 1,
+        status TEXT DEFAULT 'diagnostic',
+        plan_json TEXT,
+        diagnostic_data TEXT,
+        final_report_json TEXT,
+        created_at REAL,
+        updated_at REAL
+    )
+    """)
     
     conn.commit()
     conn.close()
@@ -603,4 +618,224 @@ def clear_user_data(chat_id: int):
         return False
     finally:
         conn.close()
+
+
+# =============================================================================
+# 12-Day Student School Plan Database Operations
+# =============================================================================
+
+STUDENT_PLANS_DIR = "database/student_plans"
+
+def _ensure_student_plans_dir():
+    import os
+    os.makedirs(STUDENT_PLANS_DIR, exist_ok=True)
+
+def _save_plan_json_file(chat_id: str, plan_dict: dict):
+    import os
+    import json
+    _ensure_student_plans_dir()
+    filepath = os.path.join(STUDENT_PLANS_DIR, f"{chat_id}_school_plan.json")
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(plan_dict, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logging.warning(f"Could not save student plan JSON file for {chat_id}: {e}")
+
+def _load_plan_json_file(chat_id: str) -> Optional[dict]:
+    import os
+    import json
+    filepath = os.path.join(STUDENT_PLANS_DIR, f"{chat_id}_school_plan.json")
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logging.warning(f"Could not read student plan JSON file for {chat_id}: {e}")
+    return None
+
+def save_student_school_plan(
+    chat_id: str,
+    plan_data: dict,
+    diagnostic_data: Optional[dict] = None,
+    status: str = "active"
+) -> bool:
+    """Save or replace a 12-day school plan for a student in DB and file."""
+    import json
+    now = time.time()
+    chat_id_str = str(chat_id)
+    plan_json = json.dumps(plan_data, ensure_ascii=False)
+    diag_json = json.dumps(diagnostic_data, ensure_ascii=False) if diagnostic_data else None
+
+    # Mirror to JSON file
+    _save_plan_json_file(chat_id_str, plan_data)
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id FROM student_school_plans WHERE chat_id = ?", (chat_id_str,))
+        row = cur.fetchone()
+        if row:
+            cur.execute("""
+                UPDATE student_school_plans
+                SET plan_json = ?, diagnostic_data = COALESCE(?, diagnostic_data),
+                    status = ?, current_day = ?, updated_at = ?
+                WHERE chat_id = ?
+            """, (plan_json, diag_json, status, plan_data.get("current_day", 1), now, chat_id_str))
+        else:
+            cur.execute("""
+                INSERT INTO student_school_plans
+                (chat_id, current_day, status, plan_json, diagnostic_data, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (chat_id_str, plan_data.get("current_day", 1), status, plan_json, diag_json, now, now))
+        conn.commit()
+        return True
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"Failed to save student school plan for {chat_id_str}: {e}")
+        return False
+    finally:
+        conn.close()
+
+def get_student_school_plan(chat_id: str) -> Optional[dict]:
+    """Retrieve the student's active 12-day plan from DB or fallback file."""
+    import json
+    chat_id_str = str(chat_id)
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT chat_id, current_day, status, plan_json, diagnostic_data, final_report_json, updated_at
+            FROM student_school_plans WHERE chat_id = ?
+        """, (chat_id_str,))
+        row = cur.fetchone()
+        if row and row["plan_json"]:
+            try:
+                plan = json.loads(row["plan_json"])
+                plan["current_day"] = row["current_day"]
+                plan["status"] = row["status"]
+                if row["final_report_json"]:
+                    plan["final_report"] = json.loads(row["final_report_json"])
+                if row["diagnostic_data"]:
+                    plan["diagnostic_data"] = json.loads(row["diagnostic_data"])
+                return plan
+            except Exception as e:
+                logging.warning(f"Error parsing plan_json from db: {e}")
+    except Exception as e:
+        logging.error(f"Failed to fetch student plan for {chat_id_str}: {e}")
+    finally:
+        conn.close()
+
+    # Fallback to JSON file if present
+    file_plan = _load_plan_json_file(chat_id_str)
+    return file_plan
+
+def update_student_day_progress(
+    chat_id: str,
+    day_number: int,
+    homework: str,
+    evaluation: dict,
+    passed: bool
+) -> Optional[dict]:
+    """
+    Update a specific day's submission and evaluation.
+    If passed is True, mark day completed and increment current_day.
+    """
+    import json
+    plan = get_student_school_plan(chat_id)
+    if not plan:
+        return None
+
+    days = plan.get("days", [])
+    day_updated = False
+    for d in days:
+        if d.get("day") == day_number:
+            d["submission"] = homework
+            d["evaluation"] = evaluation
+            d["status"] = "completed" if passed else "needs_revision"
+            day_updated = True
+            break
+
+    if not day_updated:
+        # Create day entry if missing
+        days.append({
+            "day": day_number,
+            "submission": homework,
+            "evaluation": evaluation,
+            "status": "completed" if passed else "needs_revision"
+        })
+
+    # Advance current_day if passed
+    current_day = plan.get("current_day", 1)
+    if passed and current_day == day_number:
+        if current_day < 12:
+            plan["current_day"] = current_day + 1
+            # Mark the new day as active
+            for d in days:
+                if d.get("day") == plan["current_day"] and d.get("status") == "pending":
+                    d["status"] = "active"
+        else:
+            plan["status"] = "completed"
+
+    plan["days"] = days
+    save_student_school_plan(chat_id, plan, status=plan.get("status", "active"))
+    return plan
+
+def save_student_final_report(chat_id: str, final_report: dict) -> bool:
+    """Save final 12-day comprehensive graduation report."""
+    import json
+    now = time.time()
+    chat_id_str = str(chat_id)
+    report_json = json.dumps(final_report, ensure_ascii=False)
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE student_school_plans
+            SET final_report_json = ?, status = 'completed', updated_at = ?
+            WHERE chat_id = ?
+        """, (report_json, now, chat_id_str))
+        conn.commit()
+        conn.close()
+        conn = None
+
+        # Update JSON file as well
+        plan = get_student_school_plan(chat_id_str)
+        if plan:
+            plan["final_report"] = final_report
+            plan["status"] = "completed"
+            _save_plan_json_file(chat_id_str, plan)
+        return True
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logging.error(f"Failed to save final report for {chat_id_str}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def reset_student_school_plan(chat_id: str) -> bool:
+    """Reset student plan to restart the 12-day program."""
+    import os
+    chat_id_str = str(chat_id)
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM student_school_plans WHERE chat_id = ?", (chat_id_str,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logging.error(f"Failed to delete student school plan from db: {e}")
+        return False
+    finally:
+        conn.close()
+
+    filepath = os.path.join(STUDENT_PLANS_DIR, f"{chat_id_str}_school_plan.json")
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
+    return True
+
 
